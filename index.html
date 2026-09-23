@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f9f9f7">
+<!-- Added to an iPhone's Home Screen it opens full-screen, like an app. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Budget">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Budget</title>
+<link rel="stylesheet" href="budget.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <h1 id="title">Budget</h1>
+      <div class="sub">What to pay out of each paycheck, when the bills land, and whether the money will be there.</div>
+    </div>
+    <div class="spacer"></div>
+    <button id="theme" class="ghost">Dark</button>
+  </div>
+
+  <div class="controls" id="controls">
+    <div id="mnav"></div>
+    <!-- On a phone the rest folds away behind this; on a wide screen it isn't shown. -->
+    <button id="setuptoggle" class="ghost small setuptoggle" aria-expanded="false">Setup</button>
+    <div class="setup">
+      <div id="payday"></div>
+      <div class="grp">
+        <label for="opening">Starting balance</label>
+        <span id="openingwrap"></span>
+      </div>
+    </div>
+    <div class="spacer" style="flex:1"></div>
+    <span id="source" class="srcinfo" title="Which saved file you're looking at"></span>
+    <span id="flash" class="flash" hidden></span>
+    <div class="setup">
+      <button id="export">Save data file</button>
+      <button id="import">Load data file</button>
+      <input type="file" id="importfile" accept=".js,.json,text/javascript,application/json" hidden>
+      <button id="reset" class="ghost">Reset edits</button>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-plan"  aria-controls="panel-plan">This month</button>
+    <button role="tab" id="tab-bills" aria-controls="panel-bills">Bills &amp; income</button>
+    <button role="tab" id="tab-goals" aria-controls="panel-goals">Goals</button>
+  </div>
+
+  <!-- ======================================================== AT A GLANCE -->
+  <section role="tabpanel" id="panel-plan" aria-labelledby="tab-plan" hidden>
+    <div class="verdict" id="welcome" hidden>
+      <div class="ico">↓</div>
+      <div>
+        <div class="t">No budget in here yet.</div>
+        <div class="d">Tap <b>Setup</b>, then <b>Load data file</b>, and pick a <code>budget-data.js</code>
+          you saved on your computer. Or start from scratch on the <b>Bills &amp; income</b> tab.</div>
+      </div>
+    </div>
+    <div class="paybar" id="paybar"></div>
+
+    <div class="card">
+      <h2>Each paycheck</h2>
+      <p class="hint">Each card is that week's column from the Bills page. Tick a row as you move the money; hover any row or jar for what's been paid against that bill this month. A row marked <b>↗</b> also feeds a goal or a debt — ticking it moves that number too.</p>
+      <div class="paystrip" id="paystrip"></div>
+    </div>
+
+    <div id="verdict"></div>
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <h2>When bills are due</h2>
+      <p class="hint">Every bill on the day it actually lands. Today is ringed.</p>
+      <div id="duecal"></div>
+    </div>
+
+    <div class="card">
+      <h2>Balance runway</h2>
+      <p class="hint" id="runwayhint"></p>
+      <div id="runway"></div>
+    </div>
+  </section>
+
+  <!-- =============================================================== BILLS -->
+  <section role="tabpanel" id="panel-bills" aria-labelledby="tab-bills" hidden>
+    <div class="card">
+      <h2>Money coming in</h2>
+      <p class="hint">
+        A column per paycheck, same as the bills below. <b>Amount</b> and <b>How often</b> set the
+        suggested split; type into any week to override it — a bonus week, or a paycheck that
+        lands light. Untick a source to take it out of every total.
+      </p>
+      <div id="income"></div>
+    </div>
+
+    <div class="card">
+      <h2>Bills</h2>
+      <p class="hint">
+        One column per paycheck. <b>Total needed</b> is what one round of the bill costs, and
+        <b>Due</b> is when it's due — a weekday for a weekly bill, a real date for anything
+        else. Neither has anything to do with when you get paid. The week cells are yours: type
+        what you'll take out that week, and the <b>Row total</b> tells you whether it adds up to
+        what the bill needs this month. Leave a cell alone and it uses a suggested amount;
+        <b>↺</b> puts a row back to suggested.
+      </p>
+      <div id="billgrid"></div>
+    </div>
+  </section>
+
+  <!-- =============================================================== GOALS -->
+  <section role="tabpanel" id="panel-goals" aria-labelledby="tab-goals" hidden>
+
+    <div class="card">
+      <h2>What you're saving for</h2>
+      <p class="hint">
+        One row per pot you're filling. <b>Target</b> is the number you're heading for and
+        <b>Saved</b> is where you've got to; <b>Ready by</b> works out when the two meet at the
+        monthly amount. <b>Funded by</b> is the useful one: point a goal at a bill, and every time
+        you tick that bill off on <b>This month</b>, what you moved lands in this pot.
+      </p>
+      <div id="savings"></div>
+    </div>
+
+    <div class="card">
+      <h2>What you're paying off</h2>
+      <p class="hint">
+        One row per debt. <b>Started at</b> is the balance you began tracking from — it's only
+        there to measure progress against. <b>Owed now</b> is the number you keep up to date, and
+        <b>Paid by</b> keeps it up to date for you: name the bill that pays this debt, and ticking
+        that bill off on <b>This month</b> takes the payment straight off the balance. Untick it
+        and the balance goes back up by exactly what it went down. <b>Clear by</b> works out how
+        long the rest takes at the monthly payment, allowing for the rate.
+      </p>
+      <div id="debts"></div>
+    </div>
+
+  </section>
+
+  <p class="foot">
+    Numbers live in <code>budget-data.js</code> next to this file. Edits are held in this browser;
+    <b>Save data file</b> downloads a replacement <code>budget-data.js</code> you can drop back in
+    the folder to make them permanent. <b>Reset edits</b> throws your changes away and reloads the file.
+  </p>
+
+</div>
+
+<script src="budget-data.js"></script>
+<script src="budget-engine.js"></script>
+<script src="budget-ui.js"></script>
+<script>
+(function () {
+  var E = BudgetEngine, U = BudgetUI;
+  var state = U.loadState();
+  var TABS = ["plan", "bills", "goals"];
+  var current = "plan";
+  try { current = localStorage.getItem("budget-tab") || "plan"; } catch (err) {}
+  var hash = (location.hash || "").replace("#", "");
+  if (TABS.indexOf(hash) >= 0) current = hash;
+  if (current === "debt") current = "goals";      // what this tab used to be called
+  if (TABS.indexOf(current) < 0) current = "plan";
+
+  U.initTheme(document.getElementById("theme"));
+  document.getElementById("title").textContent = (state.meta.household || "Budget");
+
+  var controls = document.getElementById("controls");
+  var setupBtn = document.getElementById("setuptoggle");
+  setupBtn.onclick = function () {
+    var open = controls.classList.toggle("open");
+    setupBtn.setAttribute("aria-expanded", open);
+    setupBtn.textContent = open ? "Done" : "Setup";
+  };
+
+  document.getElementById("export").onclick = function () {
+    U.downloadDataFile(state, paintSource);
+  };
+  document.getElementById("reset").onclick = function () {
+    if (confirm("Throw away edits made in this browser and go back to budget-data.js?")) U.resetState();
+  };
+
+  // ---- load a file you saved earlier ------------------------------------
+  var picker = document.getElementById("importfile");
+  // iOS can grey out a saved .js file against that filter; the loader checks
+  // what it's given anyway, so on a touch screen let any file through.
+  if (U.isTouchScreen()) picker.removeAttribute("accept");
+  document.getElementById("import").onclick = function () { picker.click(); };
+
+  picker.onchange = function () {
+    var file = picker.files && picker.files[0];
+    picker.value = "";                     // so picking the same file again re-fires
+    if (!file) return;
+
+    U.readBudgetFile(file, function (res) {
+      if (!res.ok) { alert(res.error); return; }
+      var d = res.data;
+      if (!confirm(
+        "Load “" + file.name + "”?\n\n" +
+        (d.meta.household ? d.meta.household + "\n" : "") +
+        d.incomes.length + " income source" + (d.incomes.length === 1 ? "" : "s") + "\n" +
+        d.bills.length + " bill" + (d.bills.length === 1 ? "" : "s") + "\n" +
+        (d.goals || []).length + " savings goal" + ((d.goals || []).length === 1 ? "" : "s") + "\n" +
+        (d.debts || []).length + " debt" + ((d.debts || []).length === 1 ? "" : "s") + "\n\n" +
+        "This replaces everything in the tool right now. Save a copy first if you want to keep it."
+      )) return;
+
+      // Reload rather than swapping the object underneath every control, so
+      // nothing is left holding the old data.
+      U.stampSource(d, file.name, "loaded");
+      U.saveState(d, true);
+      try { sessionStorage.setItem("budget-flash", "Loaded " + file.name); } catch (err) {}
+      location.reload();
+    });
+  };
+
+  try {
+    var flashed = sessionStorage.getItem("budget-flash");
+    if (flashed) {
+      sessionStorage.removeItem("budget-flash");
+      var fl = document.getElementById("flash");
+      fl.textContent = "✓ " + flashed;
+      fl.hidden = false;
+      setTimeout(function () { fl.hidden = true; }, 6000);
+    }
+  } catch (err) {}
+
+  var opening = U.moneyField("meta:opening", state.meta.openingBalance || 0, function (v) {
+    state.meta.openingBalance = v === null ? 0 : v;
+    U.saveState(state);
+    U.preserveFocus(render);
+  });
+  opening.id = "opening";
+  document.getElementById("openingwrap").append(opening);
+
+  // ------------------------------------------------------------- tabs -----
+  TABS.forEach(function (name) {
+    document.getElementById("tab-" + name).onclick = function () { setTab(name); };
+  });
+
+  function setTab(name) {
+    current = name;
+    try { localStorage.setItem("budget-tab", name); } catch (err) {}
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    TABS.forEach(function (t) {
+      document.getElementById("tab-" + t).setAttribute("aria-selected", t === name);
+      document.getElementById("panel-" + t).hidden = (t !== name);
+    });
+    render();   // panels must be visible before the chart can measure itself
+  }
+
+  // ------------------------------------------------------------ render ----
+  function paintSource() {
+    var s = U.sourceLabel(state);
+    var el = document.getElementById("source");
+    el.className = "srcinfo" + (s.dirty ? " dirty" : "");
+    el.innerHTML = "<b></b><i></i>";
+    el.firstChild.textContent = s.name;
+    el.lastChild.textContent = s.note;
+  }
+
+  function render() {
+    // Bills ticked off since the last draw move their goal or debt before
+    // anything is painted, so every panel is looking at the same numbers.
+    if (U.syncLinks(state)) U.saveState(state);
+
+    paintSource();
+    var m = E.buildMonth(state, state.meta.viewMonth);
+    if (current === "plan") renderPlan(m);
+    else if (current === "bills") renderBills(m);
+    else renderGoals();
+  }
+
+  function renderPlan(m) {
+    var weekly = m.perPaycheckIncome - m.perPaycheckOut;
+    var freq = state.meta.payFrequency === "weekly" ? "week" : "paycheck";
+
+    document.getElementById("welcome").hidden = state.bills.length > 0 || state.incomes.length > 0;
+
+    var v = document.getElementById("verdict");
+    v.className = "verdict " + (weekly >= 0 ? "good" : "critical");
+    v.innerHTML =
+      '<div class="ico">' + (weekly >= 0 ? "✓" : "!") + "</div><div>" +
+      '<div class="t">' + (weekly >= 0
+        ? "This month works. " + E.money(weekly) + " spare every " + freq + "."
+        : "You are " + E.money(Math.abs(weekly)) + " short every " + freq + ".") +
+      "</div>" +
+      '<div class="d">Break-even is ' + E.money(m.breakEven) + " per " + freq + "; you're bringing in " +
+        E.money(m.perPaycheckIncome) + ". Over " + m.label + " that's " +
+        (m.monthNet >= 0 ? "a surplus of " : "a shortfall of ") + E.money(Math.abs(m.monthNet)) + "." +
+      "</div></div>";
+
+    document.getElementById("tiles").innerHTML = [
+      tile("Income per " + freq, E.money(m.perPaycheckIncome), m.paycheckCount + " paychecks this month"),
+      tile("Paying out per " + freq, E.money(m.perPaycheckOut), "across " + activeBills() + " active bills"),
+      tile((weekly >= 0 ? "Left over per " : "Short every ") + freq,
+           E.money(Math.abs(weekly)), weekly >= 0 ? "spare cash" : "the gap to close",
+           weekly >= 0 ? "pos" : "neg", true),
+      tile("Lowest point", E.money(m.lowestBalance, { cents: false }),
+           m.lowestBalance < 0 ? "balance goes negative" : "balance stays positive",
+           m.lowestBalance < 0 ? "neg" : "pos")
+    ].join("");
+
+    U.renderPayStrip(document.getElementById("paybar"), state, m);
+    U.renderPayCards(document.getElementById("paystrip"), state, m, render);
+
+    document.getElementById("runwayhint").textContent =
+      "Starting from " + E.money(state.meta.openingBalance || 0) +
+      ", following the real dates money arrives and leaves. Lowest point: " + E.money(m.lowestBalance) + ".";
+    U.renderDueCalendar(document.getElementById("duecal"), m);
+    U.renderRunway(document.getElementById("runway"), m);
+  }
+
+  function renderGoals() {
+    U.renderSavings(document.getElementById("savings"), state, render);
+    U.renderDebts(document.getElementById("debts"), state, render);
+  }
+
+  function renderBills(m) {
+    U.renderIncomeGrid(document.getElementById("income"), state, m, render);
+    U.renderBillGrid(document.getElementById("billgrid"), state, m, render);
+  }
+
+  function activeBills() { return state.bills.filter(function (b) { return b.active !== false; }).length; }
+
+  function tile(k, v, n, cls, hero) {
+    return '<div class="tile' + (hero ? " hero" : "") + '"><div class="k">' + k +
+      '</div><div class="v ' + (cls || "") + '">' + v + '</div><div class="n">' + n + "</div></div>";
+  }
+
+  // ------------------------------------------------------------- start ----
+  U.monthNav(document.getElementById("mnav"), state, render);
+
+  // The payday control redraws itself, since changing the frequency changes
+  // which of its own fields make sense.
+  function paintPayday() {
+    var host = document.getElementById("payday");
+    host.innerHTML = "";
+    host.append(U.paydayControl(state, function () { paintPayday(); render(); }));
+  }
+  paintPayday();
+  setTab(current);
+
+  var t;
+  window.addEventListener("resize", function () { clearTimeout(t); t = setTimeout(render, 150); });
+  document.addEventListener("themechange", render);
+})();
+</script>
+</body>
+</html>

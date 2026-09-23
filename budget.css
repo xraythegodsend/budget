@@ -1,0 +1,808 @@
+/* ============================================================================
+   budget.css — shared look for all three drafts.
+   Palette follows the validated reference set; light and dark are both
+   deliberately stepped, not an automatic flip.
+============================================================================ */
+
+:root {
+  color-scheme: light;
+
+  --page:            #f9f9f7;
+  --surface:         #fcfcfb;
+  --surface-sunk:    #f2f2ee;
+  --ink:             #0b0b0b;
+  --ink-2:           #52514e;
+  --muted:           #898781;
+  --grid:            #e1e0d9;
+  --baseline:        #c3c2b7;
+  --border:          rgba(11, 11, 11, 0.10);
+  --shadow:          0 1px 2px rgba(11,11,11,.05), 0 8px 24px -12px rgba(11,11,11,.18);
+
+  --good:            #0ca30c;
+  --good-text:       #006300;
+  --warning:         #fab219;
+  --serious:         #ec835a;
+  --critical:        #d03b3b;
+  --critical-wash:   rgba(208, 59, 59, 0.10);
+  --good-wash:       rgba(12, 163, 12, 0.10);
+
+  --s1: #2a78d6;  --s2: #eb6834;  --s3: #1baf7a;  --s4: #eda100;
+  --s5: #e87ba4;  --s6: #008300;  --s7: #4a3aa7;  --s8: #e34948;
+
+  --r: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page:         #0d0d0d;
+    --surface:      #1a1a19;
+    --surface-sunk: #131312;
+    --ink:          #ffffff;
+    --ink-2:        #c3c2b7;
+    --muted:        #898781;
+    --grid:         #2c2c2a;
+    --baseline:     #383835;
+    --border:       rgba(255, 255, 255, 0.10);
+    --shadow:       0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+    --good-text:    #0ca30c;
+    --critical-wash: rgba(230, 103, 103, 0.14);
+    --good-wash:     rgba(12, 163, 12, 0.14);
+    --s1: #3987e5;  --s2: #d95926;  --s3: #199e70;  --s4: #c98500;
+    --s5: #d55181;  --s6: #008300;  --s7: #9085e9;  --s8: #e66767;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page:         #0d0d0d;
+  --surface:      #1a1a19;
+  --surface-sunk: #131312;
+  --ink:          #ffffff;
+  --ink-2:        #c3c2b7;
+  --muted:        #898781;
+  --grid:         #2c2c2a;
+  --baseline:     #383835;
+  --border:       rgba(255, 255, 255, 0.10);
+  --shadow:       0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  --good-text:    #0ca30c;
+  --critical-wash: rgba(230, 103, 103, 0.14);
+  --good-wash:     rgba(12, 163, 12, 0.14);
+  --s1: #3987e5;  --s2: #d95926;  --s3: #199e70;  --s4: #c98500;
+  --s5: #d55181;  --s6: #008300;  --s7: #9085e9;  --s8: #e66767;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: 1320px; margin: 0 auto; padding: 24px 20px 72px; }
+
+/* ------------------------------------------------------------------ head -- */
+
+.topbar {
+  display: flex; align-items: flex-start; gap: 16px;
+  flex-wrap: wrap; margin-bottom: 20px;
+}
+.topbar h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+.topbar .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.topbar .spacer { flex: 1 1 auto; }
+
+.draftflag {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-2); background: var(--surface-sunk);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 3px 9px; margin-bottom: 8px;
+}
+
+.draftnav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.draftnav a {
+  font-size: 12px; text-decoration: none; color: var(--ink-2);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 5px 12px; background: var(--surface);
+}
+.draftnav a:hover { border-color: var(--baseline); color: var(--ink); }
+.draftnav a[aria-current="page"] { background: var(--ink); color: var(--page); border-color: var(--ink); }
+
+/* --------------------------------------------------------------- controls -- */
+
+.controls {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+.controls .grp { display: flex; align-items: center; gap: 6px; }
+.controls label { font-size: 12px; color: var(--muted); }
+
+button, .btn {
+  font: inherit; font-size: 13px; cursor: pointer;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 11px;
+}
+button:hover, .btn:hover { border-color: var(--baseline); }
+button.primary { background: var(--ink); color: var(--page); border-color: var(--ink); }
+button.ghost { background: transparent; }
+button[aria-pressed="true"] { background: var(--ink); color: var(--page); border-color: var(--ink); }
+button.icon { padding: 6px 9px; line-height: 1; }
+
+input[type="number"], input[type="text"], input[type="date"], select {
+  font: inherit; font-size: 13px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 8px;
+}
+input[type="number"] { width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* No spinner arrows anywhere — money fields are typed, not nudged. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+input.money {
+  width: 104px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+input:focus, select:focus, button:focus-visible {
+  outline: 2px solid var(--s1); outline-offset: 1px;
+}
+
+.flash {
+  font-size: 12.5px; color: var(--good-text);
+  background: var(--good-wash); border: 1px solid var(--good);
+  border-radius: 999px; padding: 4px 11px; white-space: nowrap;
+}
+
+.monthnav { display: flex; align-items: center; gap: 4px; }
+.monthnav .m { font-weight: 600; min-width: 128px; text-align: center; font-size: 14px; }
+button.small { font-size: 12px; padding: 4px 9px; }
+button[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ card -- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+}
+.card + .card { margin-top: 16px; }
+.card h2 {
+  font-size: 13px; font-weight: 600; margin: 0 0 2px;
+  letter-spacing: .01em;
+}
+.card .hint { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+
+/* ------------------------------------------------------------ stat tiles -- */
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 13px 15px;
+}
+.tile .k { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .045em; }
+.tile .v { font-size: 25px; font-weight: 600; letter-spacing: -0.02em; margin-top: 3px; }
+.tile .n { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.tile.hero .v { font-size: 33px; }
+.pos { color: var(--good-text); }
+.neg { color: var(--critical); }
+
+/* --------------------------------------------------------------- verdict -- */
+
+.verdict {
+  display: flex; gap: 11px; align-items: flex-start;
+  border: 1px solid var(--border); border-left-width: 3px;
+  border-radius: var(--r); padding: 12px 15px; margin-bottom: 16px;
+  background: var(--surface);
+}
+.verdict.good     { border-left-color: var(--good);     background: var(--good-wash); }
+.verdict.critical { border-left-color: var(--critical); background: var(--critical-wash); }
+.verdict .ico { font-size: 15px; line-height: 1.3; }
+.verdict .t { font-weight: 600; }
+.verdict .d { color: var(--ink-2); font-size: 13px; }
+
+/* -------------------------------------------------------- paycheck cards -- */
+
+.paystrip {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(228px, 1fr));
+}
+.paycard {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.paycard header {
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  background: var(--surface-sunk);
+}
+.paycard .when { font-weight: 600; font-size: 14px; }
+.paycard .idx { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .045em; }
+.paycard .body { padding: 12px 14px; flex: 1 1 auto; }
+.paycard footer {
+  padding: 11px 14px; border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: baseline;
+  background: var(--surface-sunk);
+}
+.paycard footer .lbl { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .045em; }
+.paycard footer .amt { font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.paycard.short { border-color: var(--critical); }
+
+.moneyin {
+  padding-bottom: 9px; margin-bottom: 9px; border-bottom: 1px solid var(--grid);
+}
+.moneyin .top { display: flex; justify-content: space-between; align-items: baseline; }
+.moneyin .lbl { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .045em; }
+.moneyin .amt { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* where that week's money actually comes from */
+.moneyin .srcs { margin-top: 6px; }
+.moneyin .srcs li { padding: 1px 0; font-size: 12px; }
+.moneyin .srcs .nm { color: var(--ink-2); }
+.moneyin .srcs .am { font-size: 12px; }
+.moneyin .srcs .am.typed { color: var(--ink); font-weight: 600; }
+.moneyin .none { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 5px; }
+
+.linelist { list-style: none; margin: 0; padding: 0; }
+.linelist li {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 3px 0; font-size: 13px;
+}
+.linelist .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.linelist .am { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.linelist .due {
+  font-size: 10.5px; font-variant-numeric: tabular-nums;
+  color: var(--ink-2); background: var(--surface-sunk);
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 4px;
+}
+.swatch { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+
+.covers {
+  margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--grid);
+}
+.covers .lbl { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .045em; margin-bottom: 5px; }
+.covers .none { font-size: 12.5px; color: var(--muted); font-style: italic; }
+
+/* ------------------------------------------------------------- calendar -- */
+
+.cal { width: 100%; border-collapse: separate; border-spacing: 4px; table-layout: fixed; }
+.cal th {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+  padding-bottom: 2px; text-align: left;
+}
+.cal td {
+  vertical-align: top; height: 92px; padding: 6px 7px;
+  border: 1px solid var(--grid); border-radius: 8px;
+  background: var(--surface);
+}
+.cal td.empty { background: transparent; border-color: transparent; }
+.cal td.today { box-shadow: inset 0 0 0 2px var(--s1); }
+.cal td.today .dnum { color: var(--s1); font-weight: 700; }
+.cal td.payday { border-color: var(--good); background: var(--good-wash); }
+.cal td.negative { border-color: var(--critical); background: var(--critical-wash); }
+.cal .dnum { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cal .pill {
+  display: block; font-size: 10.5px; margin-top: 3px;
+  padding: 1px 4px; border-radius: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border: 1px solid var(--border);
+}
+.cal .pill.in { background: var(--good-wash); color: var(--good-text); border-color: var(--good); font-weight: 600; }
+.cal .pill.out { background: var(--surface-sunk); color: var(--ink-2); }
+.cal .bal {
+  position: absolute; right: 7px; bottom: 5px;
+  font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.cal td.has { position: relative; padding-bottom: 18px; }
+
+/* ------------------------------------------------------------- runway ----- */
+
+.chartbox { position: relative; width: 100%; overflow-x: auto; }
+.chartbox svg { display: block; }
+.tip {
+  position: absolute; pointer-events: none; z-index: 5;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: var(--shadow); padding: 8px 10px; font-size: 12px;
+  min-width: 132px; opacity: 0; transition: opacity .08s;
+}
+.tip.on { opacity: 1; }
+.tip .th { font-weight: 600; margin-bottom: 3px; }
+.tip .tr { display: flex; justify-content: space-between; gap: 14px; }
+.tip .tr span:last-child { font-variant-numeric: tabular-nums; }
+
+/* -------------------------------------------------------------- tables ---- */
+
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .045em;
+  padding: 6px 8px; border-bottom: 1px solid var(--baseline);
+}
+table.data td { padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.data tr.off td { color: var(--muted); }
+table.data tr:hover td { background: var(--surface-sunk); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; font-size: 12px; }
+.legend .li { display: flex; align-items: center; gap: 6px; color: var(--ink-2); }
+
+/* --------------------------------------------------------------- editor --- */
+
+.rowedit {
+  display: grid; grid-template-columns: 22px 1fr 104px 176px auto;
+  gap: 8px; align-items: center; padding: 5px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.rowedit:last-child { border-bottom: 0; }
+.rowedit .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rowedit .meta { font-size: 11.5px; color: var(--muted); }
+.rowedit.off .nm { color: var(--muted); }
+.rowedit input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--s1); }
+.rowedit input[type="text"] { width: 100%; max-width: 420px; }
+.rowedit input.money { width: 100%; max-width: none; }
+.rowedit select { max-width: 100%; }
+
+details.notes { margin-top: 14px; }
+details.notes summary { cursor: pointer; font-size: 12.5px; color: var(--ink-2); }
+details.notes .inner { font-size: 12.5px; color: var(--ink-2); padding: 8px 0 0; }
+
+/* ----------------------------------------------------------------- tabs -- */
+
+.tabs {
+  display: flex; gap: 4px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  border: 0; border-radius: 0; background: transparent;
+  padding: 9px 16px; font-size: 13.5px; color: var(--ink-2);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] {
+  color: var(--ink); font-weight: 600; border-bottom-color: var(--ink);
+}
+.tabs button .count {
+  font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px;
+}
+[role="tabpanel"][hidden] { display: none; }
+
+/* ------------------------------------------------------------- bill grid -- */
+
+table.gridtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.gridtable th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .045em;
+  padding: 6px 5px; border-bottom: 1px solid var(--baseline); white-space: nowrap;
+  vertical-align: bottom;
+}
+table.gridtable th.num { text-align: right; }
+table.gridtable th.wk { text-align: right; color: var(--ink-2); }
+table.gridtable th.wk span {
+  display: block; font-weight: 400; font-size: 10.5px; color: var(--muted);
+  letter-spacing: 0; text-transform: none;
+}
+table.gridtable th.tot, table.gridtable td.tot { border-left: 1px solid var(--baseline); }
+
+table.gridtable td {
+  padding: 4px 5px; border-bottom: 1px solid var(--grid);
+  vertical-align: middle; white-space: nowrap;
+}
+table.gridtable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.gridtable tr:hover td { background: var(--surface-sunk); }
+
+table.gridtable input[type="text"] { width: 100%; min-width: 96px; }
+table.gridtable input.money { width: 96px; min-width: 0; }
+table.gridtable input.wcell { width: 92px; min-width: 0; }
+table.gridtable input.wdate { width: 122px; font-size: 12.5px; padding: 5px 5px;
+  font-variant-numeric: tabular-nums; }
+table.gridtable select.wday { max-width: 118px; width: 118px; }
+table.gridtable input.wcell:disabled { opacity: .45; }
+table.gridtable select { max-width: 120px; font-size: 12.5px; padding: 5px 4px; }
+table.gridtable input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--s1); }
+
+/* a cell you typed yourself, vs one the tool suggested */
+table.gridtable input.wcell { color: var(--muted); background: transparent; }
+table.gridtable input.wcell.typed { color: var(--ink); font-weight: 600; background: var(--surface); }
+table.gridtable input.wcell:focus { color: var(--ink); }
+
+/* the week the bill actually lands in */
+table.gridtable td.wk.duehere { box-shadow: inset 0 -2px 0 var(--baseline); }
+
+table.gridtable td.tot > div { font-weight: 600; font-variant-numeric: tabular-nums; }
+table.gridtable td.tot .flag { margin-top: 2px; }
+
+table.gridtable tfoot td {
+  border-bottom: 0; border-top: 1px solid var(--baseline);
+  font-weight: 600; padding-top: 8px; padding-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+table.gridtable tfoot tr:hover td { background: transparent; }
+table.gridtable tfoot tr.sum + tr.sum td { border-top: 0; padding-top: 2px; }
+table.gridtable tfoot tr.left td { padding-top: 6px; border-top: 1px solid var(--grid); }
+
+table.gridtable button.icon { color: var(--muted); padding: 4px 7px; }
+table.gridtable button.icon:hover { color: var(--ink); border-color: var(--baseline); }
+
+.parked { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--border); }
+.parked h3 { font-size: 13px; margin: 0 0 2px; font-weight: 600; }
+.parked .hint { margin-bottom: 12px; }
+table.parkedtable tr.off td { color: var(--muted); }
+table.parkedtable tr.off input:not([type="checkbox"]),
+table.parkedtable tr.off select { opacity: .55; }
+
+/* ------------------------------------------------------------ bill table -- */
+
+.tablescroll { overflow-x: auto; }
+table.billtable { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1180px; }
+table.billtable th {
+  text-align: left; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .045em;
+  padding: 7px 6px; border-bottom: 1px solid var(--baseline); white-space: nowrap;
+}
+table.billtable th.num { text-align: right; }
+table.billtable td {
+  padding: 4px 5px; border-bottom: 1px solid var(--grid); vertical-align: middle;
+  white-space: nowrap;
+}
+table.billtable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.billtable tr.off td { color: var(--muted); }
+table.billtable tr.off input:not([type="checkbox"]), table.billtable tr.off select { opacity: .55; }
+table.billtable tr.totals td {
+  font-weight: 600; border-top: 1px solid var(--baseline); border-bottom: 0;
+  padding-top: 9px;
+}
+table.billtable input[type="text"] { width: 100%; min-width: 112px; }
+table.billtable input.wday { width: 54px; }
+table.billtable input.wdate { width: 122px; font-size: 12.5px; padding: 5px 5px;
+  font-variant-numeric: tabular-nums; }
+table.billtable input[type="number"] { width: 78px; }
+table.billtable select { max-width: 116px; font-size: 12.5px; padding: 5px 5px; }
+table.billtable select.wmode { max-width: 148px; }
+table.billtable input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--s1); }
+table.billtable input:disabled, table.billtable select:disabled {
+  opacity: .4; cursor: not-allowed;
+}
+table.billtable button.icon { color: var(--muted); }
+table.billtable button.icon:hover { color: var(--critical); border-color: var(--critical); }
+
+.duelist td.day { font-variant-numeric: tabular-nums; width: 96px; color: var(--ink-2); }
+
+.flag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border);
+        white-space: nowrap; display: inline-block; }
+.flag.tight { color: var(--critical); border-color: var(--critical); background: var(--critical-wash); }
+.flag.ok { color: var(--good-text); border-color: var(--good); background: var(--good-wash); }
+
+.foot { margin-top: 28px; font-size: 12px; color: var(--muted); }
+.foot code { background: var(--surface-sunk); padding: 1px 5px; border-radius: 4px; }
+
+@media (max-width: 640px) {
+  .cal { border-spacing: 2px; }
+  .cal td { height: 70px; padding: 4px; }
+  .rowedit { grid-template-columns: 22px 1fr 92px; }
+  .rowedit .meta, .rowedit .mode { display: none; }
+}
+
+/* which saved file you're looking at */
+.srcinfo {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  font-size: 12px; color: var(--muted); max-width: 320px;
+}
+.srcinfo b { font-weight: 600; color: var(--ink-2); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.srcinfo i { font-style: normal; white-space: nowrap; }
+.srcinfo.dirty b { color: var(--ink); }
+.srcinfo.dirty i { color: var(--serious); font-weight: 600; }
+
+/* ---------------------------------------------------- paying bills off --- */
+
+.paybar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 9px 15px; margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.paybar .cap {
+  font-size: 10.5px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .045em;
+}
+.paybar .pending .v {
+  font-size: 21px; font-weight: 600; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.paybar .sep { width: 1px; align-self: stretch; background: var(--grid); }
+.paybar .grow { flex: 1 1 260px; min-width: 200px; }
+
+/* one small tank per bill, filling as it gets paid off */
+.farm {
+  display: flex; gap: 5px; align-items: flex-end;
+  overflow-x: auto; padding-bottom: 2px; margin-top: 4px;
+}
+.jarwrap { width: 26px; flex: 0 0 auto; }
+.jar {
+  position: relative; height: 46px;
+  border: 2px solid var(--baseline); border-radius: 6px;
+  background: var(--surface-sunk); overflow: hidden;
+}
+.jar i {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+  opacity: .9; transition: height .45s cubic-bezier(.4,0,.2,1);
+}
+.jarwrap .nm {
+  font-size: 9px; color: var(--muted); text-align: center; margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.jarwrap:hover .jar { border-color: var(--ink-2); }
+.jarwrap.full .jar { border-color: var(--good); }
+.jarwrap.full .nm { color: var(--good-text); }
+
+.paytip {
+  position: fixed; z-index: 60; pointer-events: none; opacity: 0;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: var(--shadow); padding: 8px 11px; font-size: 12px;
+  transition: opacity .1s; min-width: 152px;
+}
+.paytip.on { opacity: 1; }
+.paytip .t { font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+.paytip .a { font-variant-numeric: tabular-nums; font-size: 13px; }
+.paytip .p { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+
+/* the checkable list on each paycheck card */
+.topay { padding: 11px 14px; }
+.topay .lbl {
+  font-size: 11.5px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .045em; margin-bottom: 7px;
+  display: flex; justify-content: space-between; gap: 8px;
+}
+.topay .lbl b { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.topay .none { font-size: 12.5px; color: var(--muted); font-style: italic; }
+
+.tick {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.tick:hover { background: var(--surface-sunk); }
+.tick input { width: 15px; height: 15px; accent-color: var(--s1); cursor: pointer; flex: 0 0 auto; }
+.tick .nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tick .amt { font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.tick.done .nm, .tick.done .amt { color: var(--muted); text-decoration: line-through; }
+.tick.overdue { background: var(--critical-wash); }
+.tick.overdue .nm { color: var(--critical); font-weight: 600; }
+
+.paycard.settled { border-color: var(--good); }
+.paycard.behind { border-color: var(--critical); }
+.paycard .body { padding: 0; }
+.paycard .body .moneyin { padding: 11px 14px 9px; margin: 0; }
+
+/* the due-date calendar on At a glance */
+.duecal td { height: 96px; }
+.duecal .pill.due {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface-sunk); border: 1px solid var(--border);
+  color: var(--ink-2); font-size: 10.5px; padding: 2px 4px;
+}
+.duecal .pill.due .n { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.duecal .pill.due .a { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); }
+.duecal .swatch { flex: 0 0 auto; }
+
+/* pick which day a week column sits on */
+.wkpick { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+table.gridtable .wkpick select {
+  font-size: 11px; padding: 2px 4px; max-width: 74px; min-width: 62px;
+  text-transform: none; letter-spacing: 0; font-weight: 600;
+  color: var(--ink); border-radius: 6px;
+}
+.wkpick .d {
+  font-weight: 400; font-size: 10.5px; color: var(--muted);
+  letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums;
+}
+table.gridtable .wkpick.moved select { border-color: var(--s1); color: var(--s1); }
+.wkpick.moved .d { color: var(--s1); }
+
+/* ------------------------------------------------------------- debts ---- */
+
+.debtrail {
+  position: relative; height: 12px; border-radius: 6px;
+  background: var(--surface-sunk); border: 1px solid var(--baseline);
+  overflow: hidden; margin: 0 0 16px;
+}
+.debtrail i {
+  position: absolute; inset: 0 auto 0 0;
+  background: var(--s3); transition: width .45s cubic-bezier(.4,0,.2,1);
+}
+
+table.debttable { min-width: 940px; }
+table.debttable input[type="text"] { width: 100%; min-width: 120px; }
+table.debttable input.money { width: 104px; }
+table.debttable input.apr { width: 72px; }
+table.debttable .sub { display: block; font-size: 10.5px; color: var(--muted); }
+table.debttable td .dbar {
+  position: relative; height: 10px; min-width: 110px; border-radius: 5px;
+  background: var(--surface-sunk); border: 1px solid var(--grid); overflow: hidden;
+}
+table.debttable td .dbar i {
+  position: absolute; inset: 0 auto 0 0;
+  background: var(--s3); transition: width .45s cubic-bezier(.4,0,.2,1);
+}
+table.debttable tr.cleared .dbar i { background: var(--good); }
+table.debttable tr.off td { color: var(--muted); }
+table.debttable tr.off input { opacity: .55; }
+
+/* --------------------------------------------------------- savings goals -- */
+/* Filling up rather than paying down, so they take the Saving swatch. */
+
+.goalrail i { background: var(--s2); }
+table.goaltable td .dbar i { background: var(--s2); }
+table.goaltable tr.cleared .dbar i { background: var(--good); }
+
+table.goaltable { min-width: 1080px; }
+table.debttable.debtlinked { min-width: 1180px; }
+
+/* ------------------------------------------------- the bill that funds it -- */
+
+.linkcell { display: flex; flex-direction: column; gap: 2px; min-width: 176px; }
+table.gridtable .linkcell select.billpick {
+  max-width: 100%; width: 176px; font-size: 12px; padding: 5px 4px;
+}
+.linkcell .sub { display: block; font-size: 10.5px; color: var(--muted); }
+.linkcell .sub.warn { color: var(--serious); }
+
+/* the mark on a paycheck tick whose bill also feeds a debt or a goal */
+.tick .golink {
+  flex: 0 0 auto; font-size: 11px; line-height: 1;
+  color: var(--s2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 2px 5px; cursor: help;
+}
+.tick.done .golink { color: var(--muted); }
+
+/* ============================================================== phones ====
+   Same tool, narrower screen. The toolbar's setup folds away, the paycheck
+   cards stack with finger-sized rows, the due calendar becomes a list, and
+   the wide grids scroll sideways with the name column pinned.
+============================================================================ */
+
+/* the toolbar setup sits inline on a wide screen — the wrappers vanish */
+.setup { display: contents; }
+.setuptoggle { display: none; }
+.dueagenda { display: none; }
+
+@media (max-width: 700px) {
+  .wrap {
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(56px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  /* 16px stops iOS zooming the page every time a field is tapped */
+  input[type="text"], input[type="date"], input[type="number"], select { font-size: 16px; }
+  table.gridtable select, table.gridtable input.wdate,
+  table.gridtable .wkpick select { font-size: 16px; }
+  button { min-height: 38px; }
+
+  .topbar { margin-bottom: 12px; align-items: center; }
+  .topbar .sub { display: none; }
+  .topbar h1 { font-size: 18px; }
+
+  /* toolbar: month and a Setup button; the rest opens underneath */
+  .controls { padding: 8px; gap: 8px; margin-bottom: 12px; }
+  #mnav { flex: 1 1 auto; }
+  .monthnav { gap: 6px; }
+  .monthnav .m { min-width: 0; flex: 1 1 auto; font-size: 15px; }
+  .monthnav button.icon { min-width: 40px; font-size: 18px; }
+  .setuptoggle { display: inline-block; }
+  .controls .spacer { display: none; }
+  .srcinfo { order: 10; width: 100%; max-width: none; font-size: 11.5px; padding: 0 2px; }
+  .srcinfo b { max-width: 60%; }
+  .flash { order: 11; }
+
+  .setup { display: none; }
+  .controls.open .setup {
+    display: flex; flex-wrap: wrap; gap: 8px; width: 100%;
+    padding-top: 8px; border-top: 1px solid var(--grid);
+  }
+  .controls.open .setup button { flex: 1 1 auto; }
+  .controls .grp { flex-wrap: wrap; width: 100%; }
+  .controls .grp label { width: 100%; }
+  .controls .grp select, .controls .grp input.wdate { flex: 1 1 140px; }
+  .controls .grp input.money { flex: 1 1 auto; width: auto; }
+  #openingwrap { flex: 1 1 auto; display: flex; }
+  #payday { width: 100%; }
+
+  /* tabs: three equal targets */
+  .tabs { gap: 0; margin-bottom: 12px; }
+  .tabs button { flex: 1 1 0; padding: 11px 4px; font-size: 14px; min-height: 44px; }
+
+  .card { padding: 12px; }
+  .card + .card { margin-top: 12px; }
+  .card .hint { margin-bottom: 10px; }
+
+  /* the pinned pay bar, slimmed so it doesn't eat the screen */
+  .paybar {
+    gap: 8px 12px; padding: 8px 10px; margin-bottom: 12px;
+    top: env(safe-area-inset-top, 0px);
+  }
+  .paybar .pending .v { font-size: 18px; }
+  .paybar .grow { flex: 1 1 100%; min-width: 0; }
+  .paybar .sep { display: none; }
+  .farm { gap: 4px; margin-top: 2px; }
+  .jarwrap { width: 24px; }
+  .jar { height: 32px; border-radius: 5px; }
+  .jarwrap .nm { display: none; }
+
+  /* paycheck cards: one per row, rows big enough to tap */
+  .paystrip { grid-template-columns: 1fr; gap: 10px; }
+  .tick { padding: 10px 6px; font-size: 15px; gap: 10px; min-height: 44px; }
+  .tick input { width: 20px; height: 20px; }
+  .tick .amt { font-size: 14px; }
+  .tick .golink { font-size: 12px; padding: 3px 6px; }
+
+  /* verdict and tiles: two across */
+  .verdict { padding: 10px 12px; margin-bottom: 12px; }
+  .tiles { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .tile { padding: 10px 11px; }
+  .tile .k { font-size: 10.5px; }
+  .tile .v, .tile.hero .v { font-size: 21px; }
+  .tile .n { font-size: 11.5px; }
+
+  /* due dates as a list instead of a seven-column month */
+  .duecal { display: none; }
+  .dueagenda { display: block; list-style: none; margin: 0; padding: 0; }
+  .dueagenda li {
+    display: flex; gap: 12px; padding: 9px 2px;
+    border-bottom: 1px solid var(--grid);
+  }
+  .dueagenda li:last-child { border-bottom: 0; }
+  .dueagenda li.past { opacity: .55; }
+  .dueagenda li.none { color: var(--muted); font-style: italic; }
+  .dueagenda .when {
+    flex: 0 0 40px; text-align: center; line-height: 1.1;
+    padding: 4px 0; border-radius: 8px; background: var(--surface-sunk);
+    align-self: flex-start;
+  }
+  .dueagenda .when b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .dueagenda .when span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .dueagenda li.today .when { box-shadow: inset 0 0 0 2px var(--s1); }
+  .dueagenda li.today .when b { color: var(--s1); }
+  .dueagenda .items { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+  .dueagenda .item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .dueagenda .item .n { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dueagenda .item .a { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* wide grids scroll sideways under a finger; the tick and name stay put */
+  .tablescroll {
+    margin: 0 -12px; padding: 0 12px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  }
+  .tablescroll table.gridtable tr > :nth-child(1),
+  .tablescroll table.gridtable tr > :nth-child(2) {
+    position: sticky; z-index: 2; background: var(--surface);
+  }
+  .tablescroll table.gridtable tr > :nth-child(1) { left: 0; width: 30px; min-width: 30px; }
+  .tablescroll table.gridtable tr > :nth-child(2) {
+    left: 30px; box-shadow: 1px 0 0 var(--grid);
+  }
+  .tablescroll table.gridtable tr:hover td { background: var(--surface); }
+  table.gridtable input[type="text"] { min-width: 120px; max-width: 150px; }
+  table.gridtable input.wcell { width: 100px; }
+  table.gridtable input.wdate { width: 150px; }
+  table.gridtable select.wday { width: 130px; max-width: 130px; }
+  table.gridtable .wkpick select { max-width: 90px; }
+  table.gridtable input[type="checkbox"] { width: 20px; height: 20px; }
+  table.gridtable button.icon { min-width: 36px; }
+
+  .foot { font-size: 11.5px; }
+}
