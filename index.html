@@ -150,6 +150,29 @@
 
 </div>
 
+<!-- ============================================================ LANDING -->
+<!-- Shown when there's no budget in here yet — a fresh phone, or after a
+     reset on the web copy. One job: get the saved file loaded. -->
+<div class="landing" id="landing" role="dialog" aria-modal="true" aria-labelledby="landing-t" hidden>
+  <div class="landing-card">
+    <img src="icon-180.png" alt="" class="landing-icon" width="72" height="72">
+    <h2 id="landing-t">Open your budget</h2>
+    <p>Pick the <b>budget-data.js</b> file you saved on your computer with <b>Save data file</b>.</p>
+    <button class="primary landing-go" id="landing-load">Choose budget file</button>
+    <p class="landing-err" id="landing-err" role="alert" hidden></p>
+    <details class="landing-help">
+      <summary>Where's my file?</summary>
+      <p>On the computer, open the budget and click <b>Save data file</b>. It lands in
+        <b>Downloads</b> as <b>budget-data.js</b>. Email it to yourself, or upload it to
+        iCloud Drive at icloud.com. On the iPhone, an emailed file needs
+        <b>Share → Save to Files</b> first. Then tap <b>Choose budget file</b> and find it
+        under <b>Browse</b>.</p>
+      <p>Your numbers stay on this phone. Nothing is uploaded.</p>
+    </details>
+    <button class="ghost landing-skip" id="landing-skip">Start from scratch instead</button>
+  </div>
+</div>
+
 <script src="budget-data.js"></script>
 <script src="budget-engine.js"></script>
 <script src="budget-ui.js"></script>
@@ -188,7 +211,8 @@
   // iOS can grey out a saved .js file against that filter; the loader checks
   // what it's given anyway, so on a touch screen let any file through.
   if (U.isTouchScreen()) picker.removeAttribute("accept");
-  document.getElementById("import").onclick = function () { picker.click(); };
+  var fromLanding = false;   // picked from the welcome screen: nothing to replace, so no asking
+  document.getElementById("import").onclick = function () { fromLanding = false; picker.click(); };
 
   picker.onchange = function () {
     var file = picker.files && picker.files[0];
@@ -196,9 +220,12 @@
     if (!file) return;
 
     U.readBudgetFile(file, function (res) {
-      if (!res.ok) { alert(res.error); return; }
+      if (!res.ok) {
+        if (fromLanding) landingError(res.error); else alert(res.error);
+        return;
+      }
       var d = res.data;
-      if (!confirm(
+      if (!fromLanding && !confirm(
         "Load “" + file.name + "”?\n\n" +
         (d.meta.household ? d.meta.household + "\n" : "") +
         d.incomes.length + " income source" + (d.incomes.length === 1 ? "" : "s") + "\n" +
@@ -216,6 +243,33 @@
       location.reload();
     });
   };
+
+  // ---- the welcome screen -------------------------------------------------
+  // Only when there's nothing in here. "Start from scratch" puts it away for
+  // this visit; add anything and it's gone for good.
+  var landing = document.getElementById("landing");
+  var landingErr = document.getElementById("landing-err");
+  var skipped = false;
+  try { skipped = sessionStorage.getItem("budget-landing-skip") === "1"; } catch (err) {}
+
+  function landingError(msg) {
+    landingErr.textContent = msg + " Pick the budget-data.js made by Save data file.";
+    landingErr.hidden = false;
+  }
+  function showLanding(on) {
+    landing.hidden = !on;
+    document.body.classList.toggle("landing-on", on);
+  }
+  document.getElementById("landing-load").onclick = function () {
+    fromLanding = true;
+    landingErr.hidden = true;
+    picker.click();
+  };
+  document.getElementById("landing-skip").onclick = function () {
+    try { sessionStorage.setItem("budget-landing-skip", "1"); } catch (err) {}
+    showLanding(false);
+  };
+  showLanding(!skipped && !state.bills.length && !state.incomes.length);
 
   try {
     var flashed = sessionStorage.getItem("budget-flash");
