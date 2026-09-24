@@ -45,6 +45,11 @@
       <input type="file" id="importfile" accept=".js,.json,text/javascript,application/json" hidden>
       <button id="reset" class="ghost">Reset edits</button>
     </div>
+    <div class="setup drivebox" id="drivebox">
+      <button id="driveconnect">Connect Google Drive</button>
+      <span id="drivestatus" class="drivestatus" hidden></span>
+      <button id="drivedisconnect" class="ghost small" hidden>Disconnect</button>
+    </div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -157,8 +162,10 @@
   <div class="landing-card">
     <img src="icon-180.png" alt="" class="landing-icon" width="72" height="72">
     <h2 id="landing-t">Open your budget</h2>
-    <p>Pick the <b>budget-data.js</b> file you saved on your computer with <b>Save data file</b>.</p>
-    <button class="primary landing-go" id="landing-load">Choose budget file</button>
+    <p>Sign in to load your budget from Google Drive, or pick the
+      <b>budget-data.js</b> file you saved on your computer.</p>
+    <button class="primary landing-go" id="landing-drive">Connect Google Drive</button>
+    <button class="landing-go landing-secondary" id="landing-load">Choose budget file</button>
     <p class="landing-err" id="landing-err" role="alert" hidden></p>
     <details class="landing-help">
       <summary>Where's my file?</summary>
@@ -167,7 +174,8 @@
         iCloud Drive at icloud.com. On the iPhone, an emailed file needs
         <b>Share → Save to Files</b> first. Then tap <b>Choose budget file</b> and find it
         under <b>Browse</b>.</p>
-      <p>Your numbers stay on this phone. Nothing is uploaded.</p>
+      <p>Your numbers stay on this phone unless you connect Drive yourself, and even then only
+        in your own Google account — never anywhere else.</p>
     </details>
     <button class="ghost landing-skip" id="landing-skip">Start from scratch instead</button>
   </div>
@@ -176,6 +184,7 @@
 <script src="budget-data.js"></script>
 <script src="budget-engine.js"></script>
 <script src="budget-ui.js"></script>
+<script src="budget-drive.js"></script>
 <script>
 (function () {
   var E = BudgetEngine, U = BudgetUI;
@@ -205,6 +214,93 @@
   document.getElementById("reset").onclick = function () {
     if (confirm("Throw away edits made in this browser and go back to budget-data.js?")) U.resetState();
   };
+
+  // ---- Google Drive sync (optional; each person's own Drive) ------------
+  var driveConnectBtn = document.getElementById("driveconnect");
+  var driveDisconnectBtn = document.getElementById("drivedisconnect");
+  var driveStatusEl = document.getElementById("drivestatus");
+
+  // Ignores fields that legitimately differ between an ordinary reload and a
+  // pull from Drive, so autoConnect below only reloads when something real
+  // actually changed.
+  function driveCompareKey(d) {
+    var c = JSON.parse(JSON.stringify(d));
+    if (c.meta) { delete c.meta.viewMonth; delete c.meta.source; }
+    return JSON.stringify(c);
+  }
+
+  function paintDriveUI(email) {
+    var connected = BudgetDrive.isConnected();
+    driveConnectBtn.hidden = connected;
+    driveDisconnectBtn.hidden = !connected;
+    driveStatusEl.hidden = !connected;
+    if (connected) driveStatusEl.textContent = email || BudgetDrive.connectedEmail() || "Connected";
+  }
+  paintDriveUI();
+
+  BudgetDrive.onStatus(function (s) {
+    if (!BudgetDrive.isConnected() && s.state !== "connecting") return;
+    driveStatusEl.hidden = false;
+    var email = s.email || BudgetDrive.connectedEmail();
+    var prefix = email ? email + " · " : "";
+    if (s.state === "connecting") driveStatusEl.textContent = "Connecting…";
+    else if (s.state === "pending" || s.state === "syncing") driveStatusEl.textContent = prefix + "Saving…";
+    else if (s.state === "synced") driveStatusEl.textContent = prefix + "Synced " +
+      s.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    else if (s.state === "error") driveStatusEl.textContent = prefix + "Drive error — will retry";
+    else if (s.state === "disconnected") paintDriveUI();
+  });
+
+  // Shared by the toolbar's Connect button and the welcome screen's.
+  // onError, if given, gets the message instead of an alert() — the welcome
+  // screen shows it inline rather than in a popup.
+  function connectDrive(onError) {
+    BudgetDrive.connect(function (err, result) {
+      if (err) {
+        if (onError) onError(err.message); else alert("Couldn't connect Google Drive: " + err.message);
+        return;
+      }
+      var remote = result.remote;
+      var hasData = remote && ((remote.bills && remote.bills.length) || (remote.incomes && remote.incomes.length));
+      if (hasData) {
+        if (confirm(
+          "Found a budget already saved in " + (result.email || "this Google account") + "'s Drive.\n\n" +
+          "Load it now? This replaces what's on this device.\n" +
+          "Cancel to keep what's on this device — it'll be saved to Drive instead."
+        )) {
+          U.stampSource(remote, "Google Drive", "loaded");
+          U.saveState(remote, true);
+          try { sessionStorage.setItem("budget-flash", "Loaded your budget from Google Drive"); } catch (err2) {}
+          location.reload();
+          return;
+        }
+      }
+      // Nothing was there yet, or they chose to keep this device's copy:
+      // push it up now rather than waiting on the next edit.
+      BudgetDrive.queuePush(state);
+      try { sessionStorage.setItem("budget-flash", "Connected to Google Drive" + (result.email ? " — " + result.email : "")); } catch (err2) {}
+      location.reload();
+    });
+  }
+  driveConnectBtn.onclick = function () { connectDrive(); };
+
+  driveDisconnectBtn.onclick = function () {
+    if (!confirm("Disconnect Google Drive? Your budget stays on this device — it just stops syncing.")) return;
+    BudgetDrive.disconnect();
+    paintDriveUI();
+  };
+
+  // Reconnect quietly if this device connected before. Drive is the source
+  // of truth once connected, so if what's there differs from what's on this
+  // device, adopt it — silently, the way opening a synced app usually does.
+  BudgetDrive.autoConnect(function (err, remote) {
+    paintDriveUI();
+    if (!remote) return;
+    if (driveCompareKey(remote) === driveCompareKey(state)) return;
+    U.stampSource(remote, "Google Drive", "loaded");
+    U.saveState(remote, true);
+    location.reload();
+  });
 
   // ---- load a file you saved earlier ------------------------------------
   var picker = document.getElementById("importfile");
@@ -264,6 +360,10 @@
     fromLanding = true;
     landingErr.hidden = true;
     picker.click();
+  };
+  document.getElementById("landing-drive").onclick = function () {
+    landingErr.hidden = true;
+    connectDrive(function (msg) { landingErr.textContent = msg; landingErr.hidden = false; });
   };
   document.getElementById("landing-skip").onclick = function () {
     try { sessionStorage.setItem("budget-landing-skip", "1"); } catch (err) {}

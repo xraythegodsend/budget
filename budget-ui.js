@@ -60,6 +60,11 @@
       state.meta.source.dirty = clean ? false : true;
     }
     try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (err) {}
+    // Optional: if budget-drive.js is loaded and the viewer has connected a
+    // Drive, every save (this function is the one place all edits funnel
+    // through, called from inside this file as well as from budget.html)
+    // queues a debounced write there too. Absent the file, this is a no-op.
+    if (global.BudgetDrive && global.BudgetDrive.queuePush) global.BudgetDrive.queuePush(state);
   }
 
   // Records which file the data in front of you came from.
