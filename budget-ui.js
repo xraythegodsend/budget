@@ -1702,12 +1702,25 @@
   }
 
   // --------------------------------------------------- paycheck pay cards --
+  // Which paycheck cards are collapsed, keyed by the paycheck's own date so
+  // it stays meaningful across months rather than by position on screen.
+  // UI-only preference, not part of the budget itself.
+  var PAYCARD_COLLAPSE_KEY = "budget-collapsed-paychecks";
+  function loadCollapsedPaychecks() {
+    try { return JSON.parse(localStorage.getItem(PAYCARD_COLLAPSE_KEY) || "{}"); }
+    catch (err) { return {}; }
+  }
+  function saveCollapsedPaychecks(map) {
+    try { localStorage.setItem(PAYCARD_COLLAPSE_KEY, JSON.stringify(map)); } catch (err) {}
+  }
+
   function renderPayCards(host, state, model, rerender) {
     host.innerHTML = "";
     var today = E.todayUTC();
     var rows = payRows(model);
     var bills = payByBill(rows);
     var links = linkMap(state);
+    var collapsedMap = loadCollapsedPaychecks();
 
     if (!model.paychecks.length) {
       host.append(el("p", "hint", "No paychecks land in this month \u2014 check the payday setting."));
@@ -1720,13 +1733,29 @@
       var doneN = mine.filter(function (r) { return r.paid; }).length;
       var behind = pc.date <= today && owed > 0.005;
       var settled = mine.length && owed <= 0.005;
+      var key = E.toISO(pc.date);
+      var collapsed = !!collapsedMap[key];
 
-      var card = el("div", "paycard" + (behind ? " behind" : settled ? " settled" : ""));
+      var card = el("div", "paycard" + (behind ? " behind" : settled ? " settled" : "") +
+        (collapsed ? " collapsed" : ""));
 
       var head = el("header");
-      head.append(el("div", "idx", "Paycheck " + (idx + 1) + " of " + model.paycheckCount));
-      head.append(el("div", "when", pc.date.toLocaleDateString("en-US",
+      var toggle = el("button", "cardhead");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.title = collapsed ? "Show this paycheck's bills" : "Collapse this paycheck";
+      var headmeta = el("span", "headmeta");
+      headmeta.append(el("span", "idx", "Paycheck " + (idx + 1) + " of " + model.paycheckCount));
+      headmeta.append(el("span", "when", pc.date.toLocaleDateString("en-US",
         { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" })));
+      toggle.append(headmeta, el("span", "chev", collapsed ? "\u2304" : "\u2303"));
+      toggle.onclick = function () {
+        var map = loadCollapsedPaychecks();
+        if (map[key]) delete map[key]; else map[key] = true;
+        saveCollapsedPaychecks(map);
+        rerender();
+      };
+      head.append(toggle);
       card.append(head);
 
       var body = el("div", "body");

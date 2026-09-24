@@ -225,12 +225,25 @@ button[hidden] { display: none; }
   display: flex; flex-direction: column;
 }
 .paycard header {
-  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--surface-sunk);
 }
 .paycard .when { font-weight: 600; font-size: 14px; }
 .paycard .idx { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .045em; }
 .paycard .body { padding: 12px 14px; flex: 1 1 auto; }
+
+/* the whole header is the collapse toggle, not just a small chevron */
+.cardhead {
+  display: flex; width: 100%; align-items: center; justify-content: space-between;
+  padding: 11px 14px; margin: 0; box-sizing: border-box;
+  background: transparent; border: 0; font: inherit; color: inherit; text-align: left;
+  cursor: pointer;
+}
+.cardhead:hover { background: var(--surface); }
+.cardhead:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
+.headmeta { display: flex; flex-direction: column; gap: 1px; }
+.chev { color: var(--muted); font-size: 13px; line-height: 1; flex: 0 0 auto; margin-left: 10px; }
+.paycard.collapsed .body { display: none; }
 .paycard footer {
   padding: 11px 14px; border-top: 1px solid var(--border);
   display: flex; justify-content: space-between; align-items: baseline;
@@ -853,7 +866,9 @@ button.landing-skip { margin-top: 22px; color: var(--muted); border: 0; font-siz
   font-size: 12px; color: var(--muted); white-space: nowrap;
   padding: 0 2px; align-self: center;
 }
+select.budgetpicker { max-width: 160px; font-size: 12.5px; }
 @media (max-width: 700px) {
-  .controls.open .drivebox { display: flex; align-items: center; gap: 8px; }
-  .drivestatus { flex: 1 1 auto; }
+  .controls.open .drivebox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .drivestatus { flex: 1 1 100%; order: 10; }
+  select.budgetpicker { flex: 1 1 auto; max-width: none; }
 }

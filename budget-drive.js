@@ -8,11 +8,17 @@
    With this file absent, or with the viewer never connecting, the tool
    behaves exactly as it always has.
 
-   Each person's budget lives in a file named budget-data.json in THEIR OWN
-   Drive, created by this app under the drive.file scope — which means this
-   app can only ever see files it created (or files a person explicitly picks
-   with it), never anything else in their Drive. Nothing is shared between
-   accounts; there is no server here beyond Google's own.
+   Each person's budget lives in a file in THEIR OWN Drive, created by this
+   app under the drive.file scope — which means this app can only ever see
+   files it created (or files a person explicitly picks with it), never
+   anything else in their Drive. Nothing is shared between accounts; there is
+   no server here beyond Google's own.
+
+   A person can have more than one budget in their Drive (a household one,
+   a "what if" draft, whatever) — each is its own JSON file. The first one
+   connect() finds or makes is named budget-data.json; listBudgets/
+   createBudget/switchBudget manage the rest. Whichever file id is current
+   (LS_FILEID) is what pull()/push() read and write.
 
    Requires the page to be served over https:// — Google's sign-in library
    refuses to authenticate a file:// page. On a local file, connect() reports
@@ -31,6 +37,7 @@
 
   var LS_CONNECTED = "budget-drive-connected";
   var LS_FILEID     = "budget-drive-fileid";
+  var LS_FILENAME   = "budget-drive-filename";
   var LS_EMAIL      = "budget-drive-email";
 
   var tokenClient = null;
@@ -50,6 +57,7 @@
 
   function isConnected() { return ls(LS_CONNECTED) === "1"; }
   function connectedEmail() { return ls(LS_EMAIL) || ""; }
+  function currentBudgetName() { return ls(LS_FILENAME) || FILE_NAME; }
 
   // ------------------------------------------------------------ sign-in ---
 
@@ -140,23 +148,103 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: FILE_NAME })
       }).then(function (r) { return r.json(); })
-        .then(function (f) { lsSet(LS_FILEID, f.id); cb(null, f.id, true); })
+        .then(function (f) { lsSet(LS_FILEID, f.id); lsSet(LS_FILENAME, FILE_NAME); cb(null, f.id, true); })
         .catch(function (err) { cb(err); });
     }
     function verify(id) {
-      api(API + "/" + id + "?fields=id,trashed", token).then(function (r) { return r.json(); })
-        .then(function (f) { (f && !f.trashed) ? cb(null, id, false) : search(); })
+      api(API + "/" + id + "?fields=id,trashed,name", token).then(function (r) { return r.json(); })
+        .then(function (f) {
+          if (f && !f.trashed) { if (f.name) lsSet(LS_FILENAME, f.name); cb(null, id, false); }
+          else search();
+        })
         .catch(function () { search(); });
     }
     function search() {
       var q = encodeURIComponent("name='" + FILE_NAME + "' and trashed=false");
-      api(API + "?q=" + q + "&spaces=drive&fields=files(id)", token).then(function (r) { return r.json(); })
+      api(API + "?q=" + q + "&spaces=drive&fields=files(id,name)", token).then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j.files && j.files.length) { lsSet(LS_FILEID, j.files[0].id); cb(null, j.files[0].id, false); }
-          else create();
+          if (j.files && j.files.length) {
+            lsSet(LS_FILEID, j.files[0].id); lsSet(LS_FILENAME, j.files[0].name);
+            cb(null, j.files[0].id, false);
+          } else create();
         }).catch(function (err) { cb(err); });
     }
     if (cached) verify(cached); else search();
+  }
+
+  // ------------------------------------------------------- other budgets --
+  // A person can keep more than one budget in their Drive. These manage the
+  // list and switch which file id pull()/push() read and write.
+
+  function blankBudget(name) {
+    return {
+      meta: {
+        household: name || "Budget",
+        openingBalance: 0,
+        payFrequency: "weekly",
+        payAnchor: new Date().toISOString().slice(0, 10)
+      },
+      incomes: [], goals: [], debts: [], bills: []
+    };
+  }
+
+  function sanitizeFileName(name) {
+    name = (name || "").trim().replace(/[\\/:*?"<>|]/g, "-").slice(0, 120);
+    return name || "Untitled budget";
+  }
+
+  // Every JSON file this app can see in the person's Drive — everything
+  // drive.file scope shows us is, by construction, something this app made.
+  function listBudgets(cb) {
+    getToken(false, function (err, token) {
+      if (err) { cb(err); return; }
+      var q = encodeURIComponent("mimeType='application/json' and trashed=false");
+      api(API + "?q=" + q + "&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=name", token)
+        .then(function (r) { return r.json(); })
+        .then(function (j) { cb(null, j.files || []); })
+        .catch(function (err) { cb(err); });
+    });
+  }
+
+  function createBudget(name, cb) {
+    getToken(false, function (err, token) {
+      if (err) { cb(err); return; }
+      var fname = sanitizeFileName(name) + ".json";
+      var data = blankBudget(name);
+      api(API, token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: fname })
+      }).then(function (r) { return r.json(); })
+        .then(function (f) {
+          api(UPLOAD_API + "/" + f.id + "?uploadType=media", token, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+          }).then(function () {
+            lsSet(LS_FILEID, f.id); lsSet(LS_FILENAME, fname);
+            cb(null, { id: f.id, name: fname, data: data });
+          }).catch(function (err) { cb(err); });
+        }).catch(function (err) { cb(err); });
+    });
+  }
+
+  // Points pull()/push() at a different file already in Drive and reads it.
+  function switchBudget(fileId, name, cb) {
+    getToken(false, function (err, token) {
+      if (err) { cb(err); return; }
+      api(API + "/" + fileId + "?alt=media", token).then(function (r) { return r.text(); })
+        .then(function (text) {
+          var data = null;
+          if (text && text.trim()) {
+            try { data = JSON.parse(text); }
+            catch (err2) { cb(new Error("That file in Drive isn't readable as a budget.")); return; }
+          }
+          lsSet(LS_FILEID, fileId);
+          if (name) lsSet(LS_FILENAME, name);
+          cb(null, data);
+        }).catch(function (err) { cb(err); });
+    });
   }
 
   function pull(cb) {
@@ -185,7 +273,8 @@
         api(UPLOAD_API + "/" + fileId + "?uploadType=media", token, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(state)
+          body: JSON.stringify(state),
+          keepalive: true   // so a save started right as the tab closes can still land
         }).then(function () { cb(null); }).catch(function (err) { cb(err); });
       });
     });
@@ -199,6 +288,19 @@
     emit({ state: "pending" });
     clearTimeout(pushTimer);
     pushTimer = setTimeout(flushPush, 1500);
+  }
+
+  // A backgrounded tab can have its timers frozen before the 1500ms debounce
+  // ever fires — switching apps on a phone right after an edit is the normal
+  // way to lose one. Flush immediately whenever the page is about to stop
+  // being visible, instead of waiting on the timer.
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden" && pendingState) { clearTimeout(pushTimer); flushPush(); }
+    });
+    window.addEventListener("pagehide", function () {
+      if (pendingState) { clearTimeout(pushTimer); flushPush(); }
+    });
   }
 
   function flushPush() {
@@ -274,10 +376,14 @@
   global.BudgetDrive = {
     isConnected: isConnected,
     connectedEmail: connectedEmail,
+    currentBudgetName: currentBudgetName,
     connect: connect,
     autoConnect: autoConnect,
     disconnect: disconnect,
     queuePush: queuePush,
-    onStatus: onStatus
+    onStatus: onStatus,
+    listBudgets: listBudgets,
+    createBudget: createBudget,
+    switchBudget: switchBudget
   };
 })(window);

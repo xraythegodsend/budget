@@ -47,6 +47,8 @@
     </div>
     <div class="setup drivebox" id="drivebox">
       <button id="driveconnect">Connect Google Drive</button>
+      <select id="drivebudgetpicker" class="budgetpicker" hidden title="Switch budget"></select>
+      <button id="drivenewbudget" class="ghost small" hidden title="Create a new, empty budget in Drive">+ New budget</button>
       <span id="drivestatus" class="drivestatus" hidden></span>
       <button id="drivedisconnect" class="ghost small" hidden>Disconnect</button>
     </div>
@@ -219,6 +221,9 @@
   var driveConnectBtn = document.getElementById("driveconnect");
   var driveDisconnectBtn = document.getElementById("drivedisconnect");
   var driveStatusEl = document.getElementById("drivestatus");
+  var driveBudgetPicker = document.getElementById("drivebudgetpicker");
+  var driveNewBudgetBtn = document.getElementById("drivenewbudget");
+  var pickerLoaded = false;   // only fetch the budget list once per page, not on every autosave
 
   // Ignores fields that legitimately differ between an ordinary reload and a
   // pull from Drive, so autoConnect below only reloads when something real
@@ -234,9 +239,63 @@
     driveConnectBtn.hidden = connected;
     driveDisconnectBtn.hidden = !connected;
     driveStatusEl.hidden = !connected;
+    if (!connected) { driveBudgetPicker.hidden = true; driveNewBudgetBtn.hidden = true; pickerLoaded = false; }
     if (connected) driveStatusEl.textContent = email || BudgetDrive.connectedEmail() || "Connected";
   }
   paintDriveUI();
+
+  // Lists every budget this device's Google account has in Drive. Called once
+  // a token already exists in memory (right after a successful sync), so
+  // this never races the sign-in exchange that autoConnect/connect run.
+  function refreshBudgetPicker() {
+    BudgetDrive.listBudgets(function (err, files) {
+      if (err || !files) return;   // quiet failure — picker just stays as it was
+      var current = BudgetDrive.currentBudgetName();
+      driveBudgetPicker.innerHTML = "";
+      files.forEach(function (f) {
+        var o = document.createElement("option");
+        o.value = f.id;
+        o.textContent = f.name.replace(/\.json$/i, "");
+        o.setAttribute("data-rawname", f.name);
+        if (f.name === current) o.selected = true;
+        driveBudgetPicker.append(o);
+      });
+    });
+  }
+
+  driveBudgetPicker.onchange = function () {
+    var opt = driveBudgetPicker.options[driveBudgetPicker.selectedIndex];
+    var rawName = opt.getAttribute("data-rawname");
+    if (rawName === BudgetDrive.currentBudgetName()) return;   // picked the one already open
+    if (!confirm("Switch to “" + opt.textContent + "”? This replaces what's on this device with that budget.")) {
+      refreshBudgetPicker();   // put the dropdown's selection back
+      return;
+    }
+    BudgetDrive.switchBudget(opt.value, rawName, function (err, data) {
+      if (err) { alert("Couldn't switch budgets: " + err.message); refreshBudgetPicker(); return; }
+      var next = data || { meta: {}, incomes: [], goals: [], debts: [], bills: [] };
+      U.stampSource(next, opt.textContent, "loaded");
+      U.saveState(next, true);
+      try { sessionStorage.setItem("budget-flash", "Switched to " + opt.textContent); } catch (err2) {}
+      location.reload();
+    });
+  };
+
+  driveNewBudgetBtn.onclick = function () {
+    var name = prompt("Name for the new budget?", "");
+    if (name === null) return;
+    name = name.trim();
+    if (!name) { alert("Give it a name."); return; }
+    driveNewBudgetBtn.disabled = true;
+    BudgetDrive.createBudget(name, function (err, result) {
+      driveNewBudgetBtn.disabled = false;
+      if (err) { alert("Couldn't create the budget: " + err.message); return; }
+      U.stampSource(result.data, result.name.replace(/\.json$/i, ""), "loaded");
+      U.saveState(result.data, true);
+      try { sessionStorage.setItem("budget-flash", "Created “" + name + "”"); } catch (err2) {}
+      location.reload();
+    });
+  };
 
   BudgetDrive.onStatus(function (s) {
     if (!BudgetDrive.isConnected() && s.state !== "connecting") return;
@@ -245,8 +304,13 @@
     var prefix = email ? email + " · " : "";
     if (s.state === "connecting") driveStatusEl.textContent = "Connecting…";
     else if (s.state === "pending" || s.state === "syncing") driveStatusEl.textContent = prefix + "Saving…";
-    else if (s.state === "synced") driveStatusEl.textContent = prefix + "Synced " +
-      s.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    else if (s.state === "synced") {
+      driveStatusEl.textContent = prefix + "Synced " +
+        s.at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      driveBudgetPicker.hidden = false;
+      driveNewBudgetBtn.hidden = false;
+      if (!pickerLoaded) { pickerLoaded = true; refreshBudgetPicker(); }
+    }
     else if (s.state === "error") driveStatusEl.textContent = prefix + "Drive error — will retry";
     else if (s.state === "disconnected") paintDriveUI();
   });
