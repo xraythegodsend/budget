@@ -872,3 +872,22 @@ select.budgetpicker { max-width: 160px; font-size: 12.5px; }
   .drivestatus { flex: 1 1 100%; order: 10; }
   select.budgetpicker { flex: 1 1 auto; max-width: none; }
 }
+
+/* welcome screen: who's signed in, and the name-your-budget step */
+.landing-card > p.landing-who {
+  font-size: 13px; color: var(--good-text); background: var(--good-wash);
+  border: 1px solid var(--good); border-radius: 999px; padding: 5px 12px; margin: -8px 0 18px;
+}
+form.landing-card { margin: auto; }
+.landing-field { align-self: stretch; text-align: left; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+input.landing-input {
+  width: 100%; font-size: 17px; padding: 12px 14px; border-radius: 12px; margin-bottom: 16px;
+}
+.landing-check {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left;
+  width: 100%; margin-bottom: 18px; font-size: 15px; cursor: pointer;
+}
+.landing-check input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--s1); flex: 0 0 auto; }
+.landing-check small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.landing-help .landing-go { margin-top: 12px; }
+button.landing-go:disabled { opacity: .6; cursor: default; }

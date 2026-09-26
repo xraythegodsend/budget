@@ -33,6 +33,9 @@
                "https://www.googleapis.com/auth/userinfo.email";
   var FILE_NAME = "budget-data.json";
   var API = "https://www.googleapis.com/drive/v3/files";
+  // Everything drive.file lets us see was made by this app. Early files were
+  // created without a mimeType, so the fixed name catches those too.
+  var BUDGETS_Q = "(name='budget-data.json' or mimeType='application/json') and trashed=false";
   var UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 
   var LS_CONNECTED = "budget-drive-connected";
@@ -146,7 +149,7 @@
       api(API, token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: FILE_NAME })
+        body: JSON.stringify({ name: FILE_NAME, mimeType: "application/json" })
       }).then(function (r) { return r.json(); })
         .then(function (f) { lsSet(LS_FILEID, f.id); lsSet(LS_FILENAME, FILE_NAME); cb(null, f.id, true); })
         .catch(function (err) { cb(err); });
@@ -160,8 +163,10 @@
         .catch(function () { search(); });
     }
     function search() {
-      var q = encodeURIComponent("name='" + FILE_NAME + "' and trashed=false");
-      api(API + "?q=" + q + "&spaces=drive&fields=files(id,name)", token).then(function (r) { return r.json(); })
+      // Newest first: a person who renamed their budget, or has several,
+      // lands on the one they touched last.
+      var q = encodeURIComponent(BUDGETS_Q);
+      api(API + "?q=" + q + "&spaces=drive&orderBy=modifiedTime%20desc&fields=files(id,name)", token).then(function (r) { return r.json(); })
         .then(function (j) {
           if (j.files && j.files.length) {
             lsSet(LS_FILEID, j.files[0].id); lsSet(LS_FILENAME, j.files[0].name);
@@ -198,7 +203,7 @@
   function listBudgets(cb) {
     getToken(false, function (err, token) {
       if (err) { cb(err); return; }
-      var q = encodeURIComponent("mimeType='application/json' and trashed=false");
+      var q = encodeURIComponent(BUDGETS_Q);
       api(API + "?q=" + q + "&spaces=drive&fields=files(id,name,modifiedTime)&orderBy=name", token)
         .then(function (r) { return r.json(); })
         .then(function (j) { cb(null, j.files || []); })
@@ -214,7 +219,7 @@
       api(API, token, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: fname })
+        body: JSON.stringify({ name: fname, mimeType: "application/json" })
       }).then(function (r) { return r.json(); })
         .then(function (f) {
           api(UPLOAD_API + "/" + f.id + "?uploadType=media", token, {
@@ -373,6 +378,38 @@
     emit({ state: "disconnected" });
   }
 
+  // Writes right now instead of after the debounce, and says when it's done
+  // — for the moments a page is about to reload and a queued save would be
+  // cut off (connecting for the first time, creating a budget).
+  function pushNow(state, cb) {
+    clearTimeout(pushTimer);
+    pendingState = null;
+    emit({ state: "syncing" });
+    push(state, function (err) {
+      if (err) emit({ state: "error", error: err.message });
+      else emit({ state: "synced", at: new Date() });
+      if (cb) cb(err || null);
+    });
+  }
+
+  // Gives the current Drive file a person's own name for their budget, so the
+  // budget picker shows "The Smiths" rather than budget-data.
+  function renameCurrent(name, cb) {
+    getToken(false, function (err, token) {
+      if (err) { cb(err); return; }
+      findOrCreateFile(token, function (err, fileId) {
+        if (err) { cb(err); return; }
+        var fname = sanitizeFileName(name) + ".json";
+        api(API + "/" + fileId, token, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: fname })
+        }).then(function () { lsSet(LS_FILENAME, fname); cb(null); })
+          .catch(function (err) { cb(err); });
+      });
+    });
+  }
+
   global.BudgetDrive = {
     isConnected: isConnected,
     connectedEmail: connectedEmail,
@@ -384,6 +421,8 @@
     onStatus: onStatus,
     listBudgets: listBudgets,
     createBudget: createBudget,
-    switchBudget: switchBudget
+    switchBudget: switchBudget,
+    pushNow: pushNow,
+    renameCurrent: renameCurrent
   };
 })(window);

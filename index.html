@@ -63,11 +63,11 @@
   <!-- ======================================================== AT A GLANCE -->
   <section role="tabpanel" id="panel-plan" aria-labelledby="tab-plan" hidden>
     <div class="verdict" id="welcome" hidden>
-      <div class="ico">↓</div>
+      <div class="ico">→</div>
       <div>
-        <div class="t">No budget in here yet.</div>
-        <div class="d">Tap <b>Setup</b>, then <b>Load data file</b>, and pick a <code>budget-data.js</code>
-          you saved on your computer. Or start from scratch on the <b>Bills &amp; income</b> tab.</div>
+        <div class="t">Your budget is ready for its first numbers.</div>
+        <div class="d">Add what comes in and what goes out, and this page fills in from there.
+          <button class="small" id="welcome-go" style="margin-top:8px;display:block">Add income and bills</button></div>
       </div>
     </div>
     <div class="paybar" id="paybar"></div>
@@ -158,29 +158,42 @@
 </div>
 
 <!-- ============================================================ LANDING -->
-<!-- Shown when there's no budget in here yet — a fresh phone, or after a
-     reset on the web copy. One job: get the saved file loaded. -->
+<!-- Shown when there's no budget in here yet — a fresh phone, a new person, or
+     after a reset on the web copy. Two steps: pick how to start, then (for a
+     new budget) give it a name. -->
 <div class="landing" id="landing" role="dialog" aria-modal="true" aria-labelledby="landing-t" hidden>
-  <div class="landing-card">
+  <div class="landing-card" id="landing-start">
     <img src="icon-180.png" alt="" class="landing-icon" width="72" height="72">
-    <h2 id="landing-t">Open your budget</h2>
-    <p>Sign in to load your budget from Google Drive, or pick the
-      <b>budget-data.js</b> file you saved on your computer.</p>
-    <button class="primary landing-go" id="landing-drive">Connect Google Drive</button>
-    <button class="landing-go landing-secondary" id="landing-load">Choose budget file</button>
+    <h2 id="landing-t">Your budget</h2>
+    <p id="landing-lede">Open the budget you already have, or start a new one.</p>
+    <p class="landing-who" id="landing-who" hidden></p>
+    <button class="primary landing-go" id="landing-drive">Open from Google Drive</button>
+    <button class="landing-go landing-secondary" id="landing-new">Start a new budget</button>
     <p class="landing-err" id="landing-err" role="alert" hidden></p>
     <details class="landing-help">
-      <summary>Where's my file?</summary>
-      <p>On the computer, open the budget and click <b>Save data file</b>. It lands in
-        <b>Downloads</b> as <b>budget-data.js</b>. Email it to yourself, or upload it to
-        iCloud Drive at icloud.com. On the iPhone, an emailed file needs
-        <b>Share → Save to Files</b> first. Then tap <b>Choose budget file</b> and find it
-        under <b>Browse</b>.</p>
-      <p>Your numbers stay on this phone unless you connect Drive yourself, and even then only
-        in your own Google account — never anywhere else.</p>
+      <summary>I have a saved file instead</summary>
+      <p>If you saved your budget with <b>Save data file</b>, it's a file called
+        <b>budget-data.js</b>. On a computer it's usually in <b>Downloads</b>. On an iPhone,
+        an emailed file needs <b>Share → Save to Files</b> first, then find it under
+        <b>Browse</b>.</p>
+      <button class="landing-go landing-secondary" id="landing-load">Choose budget file</button>
     </details>
-    <button class="ghost landing-skip" id="landing-skip">Start from scratch instead</button>
   </div>
+
+  <form class="landing-card" id="landing-name" hidden>
+    <img src="icon-180.png" alt="" class="landing-icon" width="72" height="72">
+    <h2>Name your budget</h2>
+    <p id="landing-name-lede">A household name works well, for example “The Smiths”. You can change it later.</p>
+    <label class="landing-field" for="landing-budgetname">Budget name</label>
+    <input type="text" id="landing-budgetname" class="landing-input" autocomplete="off" placeholder="e.g. The Smiths" maxlength="80">
+    <label class="landing-check" id="landing-drivecheck-row">
+      <input type="checkbox" id="landing-drivecheck" checked>
+      <span>Keep it in my Google Drive<small>So it's on every phone and computer you sign in on. Recommended.</small></span>
+    </label>
+    <button type="submit" class="primary landing-go" id="landing-create">Create budget</button>
+    <p class="landing-err" id="landing-name-err" role="alert" hidden></p>
+    <button type="button" class="ghost landing-skip" id="landing-back">Back</button>
+  </form>
 </div>
 
 <script src="budget-data.js"></script>
@@ -315,6 +328,19 @@
     else if (s.state === "disconnected") paintDriveUI();
   });
 
+  // A budget nobody has started yet: nothing in it, and never named on the
+  // welcome screen. That's what the welcome screen is for.
+  function isEmptyBudget(d) {
+    return !!d && !(d.bills && d.bills.length) && !(d.incomes && d.incomes.length) &&
+      !(d.meta && d.meta.started);
+  }
+  function openRemote(remote, note) {
+    U.stampSource(remote, BudgetDrive.currentBudgetName().replace(/\.json$/i, ""), "loaded");
+    U.saveState(remote, true);
+    try { sessionStorage.setItem("budget-flash", note); } catch (err) {}
+    location.reload();
+  }
+
   // Shared by the toolbar's Connect button and the welcome screen's.
   // onError, if given, gets the message instead of an alert() — the welcome
   // screen shows it inline rather than in a popup.
@@ -325,25 +351,30 @@
         return;
       }
       var remote = result.remote;
-      var hasData = remote && ((remote.bills && remote.bills.length) || (remote.incomes && remote.incomes.length));
-      if (hasData) {
-        if (confirm(
+
+      // Something's already in their Drive.
+      if (remote && !isEmptyBudget(remote)) {
+        if (isEmptyBudget(state) || confirm(
           "Found a budget already saved in " + (result.email || "this Google account") + "'s Drive.\n\n" +
           "Load it now? This replaces what's on this device.\n" +
           "Cancel to keep what's on this device — it'll be saved to Drive instead."
-        )) {
-          U.stampSource(remote, "Google Drive", "loaded");
-          U.saveState(remote, true);
-          try { sessionStorage.setItem("budget-flash", "Loaded your budget from Google Drive"); } catch (err2) {}
-          location.reload();
-          return;
-        }
+        )) { openRemote(remote, "Opened your budget from Google Drive"); return; }
       }
-      // Nothing was there yet, or they chose to keep this device's copy:
-      // push it up now rather than waiting on the next edit.
-      BudgetDrive.queuePush(state);
-      try { sessionStorage.setItem("budget-flash", "Connected to Google Drive" + (result.email ? " — " + result.email : "")); } catch (err2) {}
-      location.reload();
+
+      // Nothing in Drive and nothing here either: a new person. Don't reload
+      // onto the same welcome screen — ask what to call their budget.
+      if (isEmptyBudget(state)) { showNameStep(result.email); return; }
+
+      // Nothing in Drive (or they kept this device's copy): write it now and
+      // only reload once it's actually there.
+      BudgetDrive.pushNow(state, function (err2) {
+        try {
+          sessionStorage.setItem("budget-flash", err2
+            ? "Connected, but the first save to Drive didn't go through — it'll retry on your next edit"
+            : "Connected to Google Drive" + (result.email ? " — " + result.email : ""));
+        } catch (e) {}
+        location.reload();
+      });
     });
   }
   driveConnectBtn.onclick = function () { connectDrive(); };
@@ -405,12 +436,16 @@
   };
 
   // ---- the welcome screen -------------------------------------------------
-  // Only when there's nothing in here. "Start from scratch" puts it away for
-  // this visit; add anything and it's gone for good.
+  // Shows whenever there's no budget started on this device. Two ways out:
+  // open one (from Drive, or a saved file), or start a new one and name it.
   var landing = document.getElementById("landing");
+  var landingStart = document.getElementById("landing-start");
+  var landingName = document.getElementById("landing-name");
   var landingErr = document.getElementById("landing-err");
-  var skipped = false;
-  try { skipped = sessionStorage.getItem("budget-landing-skip") === "1"; } catch (err) {}
+  var nameErr = document.getElementById("landing-name-err");
+  var nameInput = document.getElementById("landing-budgetname");
+  var driveCheck = document.getElementById("landing-drivecheck");
+  var createBtn = document.getElementById("landing-create");
 
   function landingError(msg) {
     landingErr.textContent = msg + " Pick the budget-data.js made by Save data file.";
@@ -420,6 +455,34 @@
     landing.hidden = !on;
     document.body.classList.toggle("landing-on", on);
   }
+  function paintLandingStart() {
+    var who = document.getElementById("landing-who");
+    var email = BudgetDrive.connectedEmail();
+    var connected = BudgetDrive.isConnected();
+    who.hidden = !connected;
+    if (connected) who.textContent = "Signed in to Google Drive" + (email ? " as " + email : "") + ".";
+    document.getElementById("landing-drive").textContent = connected ? "Check Google Drive again" : "Open from Google Drive";
+  }
+  // `email` given: they've just signed in and their Drive is empty.
+  function showNameStep(email) {
+    showLanding(true);
+    landingStart.hidden = true;
+    landingName.hidden = false;
+    nameErr.hidden = true;
+    var connected = BudgetDrive.isConnected();
+    document.getElementById("landing-drivecheck-row").hidden = connected;
+    document.getElementById("landing-name-lede").textContent = connected
+      ? "Signed in" + (email || BudgetDrive.connectedEmail() ? " as " + (email || BudgetDrive.connectedEmail()) : "") +
+        ". There's no budget in this Google account yet, so let's start one. A household name works well."
+      : "A household name works well, for example “The Smiths”. You can change it later.";
+    nameInput.focus();
+  }
+  function showStartStep() {
+    landingName.hidden = true;
+    landingStart.hidden = false;
+    paintLandingStart();
+  }
+
   document.getElementById("landing-load").onclick = function () {
     fromLanding = true;
     landingErr.hidden = true;
@@ -429,11 +492,74 @@
     landingErr.hidden = true;
     connectDrive(function (msg) { landingErr.textContent = msg; landingErr.hidden = false; });
   };
-  document.getElementById("landing-skip").onclick = function () {
-    try { sessionStorage.setItem("budget-landing-skip", "1"); } catch (err) {}
-    showLanding(false);
-  };
-  showLanding(!skipped && !state.bills.length && !state.incomes.length);
+  document.getElementById("landing-new").onclick = function () { showNameStep(); };
+  document.getElementById("landing-back").onclick = showStartStep;
+  document.getElementById("welcome-go").onclick = function () { setTab("bills"); };
+
+  // Create: a blank budget with the name they gave it, marked as started so
+  // the welcome screen doesn't come back just because it's still empty.
+  landingName.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = nameInput.value.trim() || "My budget";
+    var blank = {
+      meta: { household: name, openingBalance: 0, payFrequency: "weekly",
+              payAnchor: new Date().toISOString().slice(0, 10), started: true },
+      incomes: [], goals: [], debts: [], bills: []
+    };
+    var wantDrive = BudgetDrive.isConnected() || driveCheck.checked;
+
+    function busy(on) { createBtn.disabled = on; createBtn.textContent = on ? "Creating…" : "Create budget"; }
+    function fail(msg) {
+      busy(false);
+      nameErr.textContent = msg;
+      nameErr.hidden = false;
+    }
+    function finish(note) {
+      U.stampSource(blank, name, "created");
+      U.saveState(blank, true);
+      try { localStorage.setItem("budget-tab", "bills"); } catch (err) {}
+      history.replaceState(null, "", "#bills");
+      try { sessionStorage.setItem("budget-flash", note); } catch (err) {}
+      location.reload();
+    }
+    // Writes the new budget into the Drive file that's current, and names it.
+    function saveToDrive() {
+      BudgetDrive.pushNow(blank, function (err) {
+        if (err) { fail("Couldn't save to Google Drive: " + err.message + " Try again, or untick the box to keep it on this device for now."); return; }
+        BudgetDrive.renameCurrent(name, function () {   // a failed rename is cosmetic; carry on
+          finish("Created “" + name + "” in your Google Drive");
+        });
+      });
+    }
+
+    nameErr.hidden = true;
+    busy(true);
+    if (!wantDrive) { finish("Created “" + name + "” on this device"); return; }
+    if (BudgetDrive.isConnected()) { saveToDrive(); return; }
+
+    BudgetDrive.connect(function (err, result) {
+      if (err) { fail("Couldn't sign in to Google Drive: " + err.message); return; }
+      var remote = result.remote;
+      if (remote && !isEmptyBudget(remote)) {
+        // They already have one. Offer it before making a second.
+        if (confirm("This Google account already has a budget saved" +
+            (remote.meta && remote.meta.household ? " (“" + remote.meta.household + "”)" : "") +
+            ".\n\nOpen that one instead?\nCancel to start “" + name + "” as a separate new budget.")) {
+          openRemote(remote, "Opened your budget from Google Drive");
+          return;
+        }
+        BudgetDrive.createBudget(name, function (err2) {
+          if (err2) { fail("Couldn't create the budget in Google Drive: " + err2.message); return; }
+          saveToDrive();
+        });
+        return;
+      }
+      saveToDrive();
+    });
+  });
+
+  paintLandingStart();
+  showLanding(isEmptyBudget(state));
 
   try {
     var flashed = sessionStorage.getItem("budget-flash");
