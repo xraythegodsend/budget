@@ -586,6 +586,7 @@
   });
 
   function setTab(name) {
+    if (name !== "bills") U.closeEditSheet();
     current = name;
     try { localStorage.setItem("budget-tab", name); } catch (err) {}
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
@@ -663,9 +664,19 @@
     U.renderDebts(document.getElementById("debts"), state, render);
   }
 
+  // A phone gets the compact grid with a tap-to-edit card; a wider screen
+  // keeps the spreadsheet where every cell is typeable in place.
   function renderBills(m) {
-    U.renderIncomeGrid(document.getElementById("income"), state, m, render);
-    U.renderBillGrid(document.getElementById("billgrid"), state, m, render);
+    var compact = U.isCompact();
+    document.getElementById("panel-bills").classList.toggle("compact", compact);
+    if (compact) {
+      U.renderIncomeCompact(document.getElementById("income"), state, m, render);
+      U.renderBillCompact(document.getElementById("billgrid"), state, m, render);
+    } else {
+      U.closeEditSheet();
+      U.renderIncomeGrid(document.getElementById("income"), state, m, render);
+      U.renderBillGrid(document.getElementById("billgrid"), state, m, render);
+    }
   }
 
   function activeBills() { return state.bills.filter(function (b) { return b.active !== false; }).length; }

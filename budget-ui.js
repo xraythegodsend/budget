@@ -793,18 +793,20 @@
     return dd;
   }
 
-  function renderBillGrid(host, state, model, rerender) {
-    host.innerHTML = "";
+  // What each paycheck puts toward each bill this month, what each bill needs,
+  // and whether it gets there — shared by the spreadsheet on a wide screen and
+  // the tap-to-edit grid on a phone, so the two can never disagree.
+  function billFacts(state, model) {
     var pcs = model.paychecks;
     var n = pcs.length;
 
-    // what each paycheck currently puts toward each bill
-    var cells = {};
+    var cells = {};   // bill id -> { amounts, manual, auto } per paycheck
     pcs.forEach(function (p, i) {
       p.allocations.forEach(function (a) {
-        var row = cells[a.bill.id] || (cells[a.bill.id] = { amounts: [], manual: [] });
-        while (row.amounts.length < n) { row.amounts.push(0); row.manual.push(false); }
+        var row = cells[a.bill.id] || (cells[a.bill.id] = { amounts: [], manual: [], auto: [] });
+        while (row.amounts.length < n) { row.amounts.push(0); row.manual.push(false); row.auto.push(0); }
         row.amounts[i] += a.amount;
+        row.auto[i] += a.auto || 0;
         if (a.manual) row.manual[i] = true;
       });
     });
@@ -853,31 +855,84 @@
       };
     }).filter(function (r) { return r.need.count > 0; });
 
+    var byId = {};
+    checked.forEach(function (r) { byId[r.bill.id] = r; });
     var short = checked.filter(function (r) { return r.short > 0.005; });
     var late = checked.filter(function (r) { return r.late; });
     var bad = short.length + late.length;
 
-    var ban = el("div", "verdict " + (bad ? "critical" : "good"));
-    ban.append(el("div", "ico", bad ? "!" : "✓"));
-    var bd = el("div");
-    bd.append(el("div", "t", bad
-      ? bad + " of " + checked.length + " bills due this month need attention."
-      : "All " + checked.length + " bills due this month are fully covered."));
+    function flag(b) {
+      var nd = need(b);
+      if (!nd.count) return { cls: "flag", text: "not due this month", title: "", short: 0, late: false };
+      var total = rowTotal(b);
+      var diff = nd.total - total;
+      var st = byId[b.id];
+      var isLate = !!(st && st.late);
+      return {
+        cls: "flag " + (diff > 0.005 || isLate ? "tight" : "ok"),
+        text: diff > 0.005 ? "short " + E.money(diff)
+            : isLate ? "! late"
+            : diff < -0.005 ? "+" + E.money(-diff) + " over"
+            : "✓ covered",
+        title: "Needs " + E.money(nd.total) + " this month" +
+          (nd.perPaycheck
+            ? " — " + E.money(nd.total / n) + " from each of " + n + " paychecks, " +
+              "covering " + nd.count + " due date" + (nd.count === 1 ? "" : "s")
+            : nd.count > 1 ? " (" + nd.count + " × " + E.money(b.amount) + ")" : "") + "." +
+          (isLate && st.fc
+            ? " Only " + E.money(st.fc.funded) + " is set aside by the " +
+              E.fmtDate(st.fc.due) + " due date."
+            : ""),
+        short: diff > 0.005 ? diff : 0,
+        late: isLate
+      };
+    }
+    function flagEl(b) {
+      var f = flag(b);
+      var sp = el("span", f.cls, f.text);
+      if (f.title) sp.title = f.title;
+      return sp;
+    }
 
-    if (short.length) {
-      bd.append(el("div", "d", "Short: " + short.map(function (r) {
-        return r.bill.name + " by " + E.money(r.short);
-      }).join(", ") + "."));
+    function banner() {
+      var ban = el("div", "verdict " + (bad ? "critical" : "good"));
+      ban.append(el("div", "ico", bad ? "!" : "✓"));
+      var bd = el("div");
+      bd.append(el("div", "t", bad
+        ? bad + " of " + checked.length + " bills due this month need attention."
+        : "All " + checked.length + " bills due this month are fully covered."));
+      if (short.length) {
+        bd.append(el("div", "d", "Short: " + short.map(function (r) {
+          return r.bill.name + " by " + E.money(r.short);
+        }).join(", ") + "."));
+      }
+      if (late.length) {
+        bd.append(el("div", "d", "Funded late — the money lands after the bill does: " +
+          late.map(function (r) { return r.bill.name; }).join(", ") + "."));
+      }
+      if (!bad) {
+        bd.append(el("div", "d", "Every row adds up to what that bill needs, in time for the due date."));
+      }
+      ban.append(bd);
+      return ban;
     }
-    if (late.length) {
-      bd.append(el("div", "d", "Funded late — the money lands after the bill does: " +
-        late.map(function (r) { return r.bill.name; }).join(", ") + "."));
-    }
-    if (!bad) {
-      bd.append(el("div", "d", "Every row adds up to what that bill needs, in time for the due date."));
-    }
-    ban.append(bd);
-    host.append(ban);
+
+    return {
+      cells: cells, need: need, rowTotal: rowTotal, live: live, parked: parked,
+      checked: checked, flag: flag, flagEl: flagEl, banner: banner
+    };
+  }
+
+  function renderBillGrid(host, state, model, rerender) {
+    host.innerHTML = "";
+    var pcs = model.paychecks;
+    var n = pcs.length;
+
+    var F = billFacts(state, model);
+    var cells = F.cells, need = F.need, rowTotal = F.rowTotal;
+    var live = F.live, parked = F.parked, checked = F.checked;
+
+    host.append(F.banner());
 
     // ---- the grid ----------------------------------------------------------
     var scroll = el("div", "tablescroll");
@@ -1050,28 +1105,7 @@
       var tot = el("td", "num tot");
       var big = el("div", null, E.money(total));
       tot.append(big);
-      if (nd.count > 0) {
-        var diff = nd.total - total;
-        var st = checked.filter(function (r) { return r.bill === b; })[0];
-        var isLate = st && st.late;
-        var fl = el("span", "flag " + (diff > 0.005 || isLate ? "tight" : "ok"));
-        fl.textContent = diff > 0.005 ? "short " + E.money(diff)
-                       : isLate ? "! late"
-                       : diff < -0.005 ? "+" + E.money(-diff) + " over"
-                       : "✓ covered";
-        fl.title = "Needs " + E.money(nd.total) + " this month" +
-          (nd.perPaycheck
-            ? " — " + E.money(nd.total / n) + " from each of " + n + " paychecks, " +
-              "covering " + nd.count + " due date" + (nd.count === 1 ? "" : "s")
-            : nd.count > 1 ? " (" + nd.count + " × " + E.money(b.amount) + ")" : "") + "." +
-          (isLate && st.fc
-            ? " Only " + E.money(st.fc.funded) + " is set aside by the " +
-              E.fmtDate(st.fc.due) + " due date."
-            : "");
-        tot.append(fl);
-      } else {
-        tot.append(el("span", "flag", "not due this month"));
-      }
+      tot.append(F.flagEl(b));
       tr.append(tot);
 
       // ---- reset / remove ----
@@ -1107,6 +1141,483 @@
 
     function round2(v) { return Math.round(v * 100) / 100; }
     function commit() { saveState(state); preserveFocus(rerender); }
+  }
+
+  // ============================================== the Bills page on a phone ==
+  // The spreadsheet above needs a wide screen to type into every cell. On a
+  // phone the same month is a compact grid you read at a glance — every week
+  // fits across without scrolling sideways — and tapping a row opens a card
+  // with everything that row used to hold as columns. Tapping a date heading
+  // opens that paycheck's weekday. Same data, same checks (billFacts), so the
+  // two layouts always agree.
+
+  function isCompact() {
+    return !!(window.matchMedia && matchMedia("(max-width: 700px)").matches);
+  }
+
+  // Cells drop their cents when there aren't any, so five weeks fit across.
+  function cellMoney(v) {
+    return Math.round(v * 100) % 100 === 0 ? E.money(v, { cents: false }) : E.money(v);
+  }
+  function tintFor(color) { return "color-mix(in srgb, " + color + " 24%, var(--surface))"; }
+
+  // What the editor card reads after each edit: the numbers as of the latest
+  // render. Both compact renders refresh it every time they draw.
+  var compactCtx = { state: null, model: null, rerender: null, bills: null, incomes: null };
+
+  function incomeFacts(model) {
+    var n = model.paychecks.length, cells = {};
+    model.paychecks.forEach(function (p, i) {
+      p.income.forEach(function (x) {
+        var row = cells[x.source.id] || (cells[x.source.id] = { amounts: [], manual: [], auto: [] });
+        while (row.amounts.length < n) { row.amounts.push(0); row.manual.push(false); row.auto.push(0); }
+        row.amounts[i] += x.amount;
+        row.auto[i] += x.auto || 0;
+        if (x.manual) row.manual[i] = true;
+      });
+    });
+    return { cells: cells };
+  }
+
+  // One compact grid. rows: [{ kind, id, name, color, tint, amounts, manual,
+  // off, total, sub, bad }]; foot: [{ label, values, total, signed }].
+  function heatTable(model, rows, foot, nameLabel) {
+    var pcs = model.paychecks;
+    var t = el("table", "heat" + (pcs.length >= 5 ? " w5" : ""));
+
+    var cg = el("colgroup");
+    cg.append(el("col", "nmcol"));
+    pcs.forEach(function () { cg.append(el("col")); });
+    cg.append(el("col", "totcol"));
+    t.append(cg);
+
+    if (nameLabel) {
+      var th = el("thead"), hr = el("tr");
+      hr.append(el("th", "nmh", nameLabel));
+      pcs.forEach(function (p, i) {
+        var c = el("th");
+        var b = el("button", "wkh" + (p.moved ? " moved" : ""));
+        b.type = "button";
+        b.setAttribute("data-week", p.key);
+        b.setAttribute("aria-label", "Paycheck " + (i + 1) + ", " + E.fmtDate(p.date) + ". Change its day.");
+        b.append(el("span", "dw", WEEKDAYS_SHORT[p.date.getUTCDay()]), el("span", "dd", String(p.date.getUTCDate())));
+        c.append(b);
+        hr.append(c);
+      });
+      hr.append(el("th", "toth", "Total"));
+      th.append(hr);
+      t.append(th);
+    }
+
+    var tb = el("tbody");
+    rows.forEach(function (r) {
+      var tr = el("tr", "row" + (r.off ? " off" : "") + (r.bad ? " short" : ""));
+      tr.tabIndex = 0;
+      tr.setAttribute("data-edit", r.kind + ":" + r.id);
+      tr.setAttribute("aria-label", "Edit " + (r.name || "Untitled"));
+      var nm = el("td", "nm");
+      if (r.color) { var sw = el("span", "swatch"); sw.style.background = r.color; nm.append(sw); }
+      nm.append(document.createTextNode(r.name || "Untitled"));
+      tr.append(nm);
+      pcs.forEach(function (p, i) {
+        var v = r.amounts[i] || 0;
+        var cls = v ? ((r.manual[i] ? "typed" : "") + (Math.round(v * 100) % 100 ? " cents" : "")) : "empty";
+        var td = el("td", cls.trim(), v ? cellMoney(v) : "–");
+        if (v && !r.off && r.tint) td.style.background = tintFor(r.tint);
+        tr.append(td);
+      });
+      var tot = el("td", "tot", cellMoney(r.total));
+      if (r.sub) tot.append(el("small", null, r.sub));
+      tr.append(tot);
+      tb.append(tr);
+    });
+    t.append(tb);
+
+    if (foot && foot.length) {
+      var tf = el("tfoot");
+      foot.forEach(function (f, k) {
+        var tr = el("tr", k === 0 ? "first" : null);
+        tr.append(el("td", "nm", f.label));
+        f.values.forEach(function (v) {
+          tr.append(el("td", f.signed ? (v < 0 ? "neg" : "pos") : null, cellMoney(v)));
+        });
+        tr.append(el("td", "tot" + (f.signed ? (f.total < 0 ? " neg" : " pos") : ""), cellMoney(f.total)));
+        tf.append(tr);
+      });
+      t.append(tf);
+    }
+    return t;
+  }
+
+  function wireGrid(host) {
+    host.onclick = function (e) {
+      var wk = e.target.closest("[data-week]");
+      if (wk) { openSheet("week", wk.getAttribute("data-week")); return; }
+      var row = e.target.closest("[data-edit]");
+      if (row) {
+        var p = row.getAttribute("data-edit").split(":");
+        openSheet(p[0], p.slice(1).join(":"));
+      }
+    };
+    host.onkeydown = function (e) {
+      var row = e.target.closest && e.target.closest("tr[data-edit]");
+      if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); row.click(); }
+    };
+  }
+
+  function renderIncomeCompact(host, state, model, rerender) {
+    host.innerHTML = "";
+    var f = incomeFacts(model);
+    compactCtx.state = state; compactCtx.model = model; compactCtx.rerender = rerender; compactCtx.incomes = f;
+    var n = model.paychecks.length;
+
+    host.append(el("p", "compacthint", "Tap a source to change it, or to type a different amount for one week."));
+    var rows = state.incomes.map(function (inc) {
+      var on = inc.active !== false;
+      var c = f.cells[inc.id] || { amounts: [], manual: [] };
+      var amounts = [];
+      for (var i = 0; i < n; i++) amounts.push(on ? (c.amounts[i] || 0) : 0);
+      return {
+        kind: "inc", id: inc.id, name: inc.name, amounts: amounts, manual: c.manual, off: !on,
+        tint: "var(--good)", total: amounts.reduce(function (s, v) { return s + v; }, 0)
+      };
+    });
+    host.append(heatTable(model, rows, [{
+      label: "Total in", values: model.paychecks.map(function (p) { return p.incomeTotal; }), total: model.monthIncome
+    }], "Source"));
+
+    var add = el("button", "compactadd", "+ Add income");
+    add.onclick = function () {
+      var inc = { id: newId("inc-", state.incomes), name: "New income", amount: 0, cadence: "weekly", active: true };
+      state.incomes.push(inc);
+      saveState(state); rerender();
+      openSheet("inc", inc.id, true);
+    };
+    host.append(add);
+    wireGrid(host);
+  }
+
+  function renderBillCompact(host, state, model, rerender) {
+    host.innerHTML = "";
+    var F = billFacts(state, model);
+    compactCtx.state = state; compactCtx.model = model; compactCtx.rerender = rerender; compactCtx.bills = F;
+    var n = model.paychecks.length;
+
+    host.append(F.banner());
+    host.append(el("p", "compacthint", "Tap a bill to edit it, or a date to move that paycheck to another day. Bold amounts are ones you typed."));
+
+    function sorted(list) {
+      return list.slice().sort(function (a, b) { return E.CATEGORIES.indexOf(a.category) - E.CATEGORIES.indexOf(b.category); });
+    }
+    var rows = sorted(F.live).map(function (b) {
+      var c = F.cells[b.id] || { amounts: [], manual: [] };
+      var amounts = [];
+      for (var i = 0; i < n; i++) amounts.push(c.amounts[i] || 0);
+      var fl = F.flag(b);
+      return {
+        kind: "bill", id: b.id, name: b.name, color: catColor(b.category), tint: catColor(b.category),
+        amounts: amounts, manual: c.manual, total: F.rowTotal(b),
+        bad: fl.short > 0 || fl.late, sub: fl.short > 0 ? "short" : fl.late ? "late" : ""
+      };
+    });
+    host.append(heatTable(model, rows, [
+      { label: "Total out", values: model.paychecks.map(function (p) { return p.outTotal; }), total: model.monthOut },
+      { label: "Money in", values: model.paychecks.map(function (p) { return p.incomeTotal; }), total: model.monthIncome },
+      { label: "Left over", values: model.paychecks.map(function (p) { return p.net; }), total: model.monthNet, signed: true }
+    ], "Bill"));
+
+    var add = el("button", "primary compactadd", "+ Add a bill");
+    add.onclick = function () {
+      var b = {
+        id: newId("b-", state.bills), name: "New bill", category: "Personal",
+        amount: 0, cadence: "monthly", dueDate: state.meta.viewMonth + "-01", mode: "spread", active: true
+      };
+      state.bills.push(b);
+      saveState(state); rerender();
+      openSheet("bill", b.id, true);
+    };
+    host.append(add);
+
+    if (F.parked.length) {
+      var pw = el("div", "parked");
+      pw.append(el("h3", null, "Not using right now"));
+      pw.append(el("p", "hint", "Out of every total. Tap one to bring it back."));
+      pw.append(heatTable(model, sorted(F.parked).map(function (b) {
+        return {
+          kind: "bill", id: b.id, name: b.name, color: catColor(b.category), off: true,
+          amounts: [], manual: [], total: F.need(b).total
+        };
+      }), null, null));
+      host.append(pw);
+    }
+    wireGrid(host);
+    if (sheetOpen()) refreshSheet();
+  }
+
+  // ------------------------------------------------------ the editor card --
+  var sheetEl = null, scrimEl = null, sheetFor = null;
+
+  function ensureSheet() {
+    if (sheetEl) return;
+    scrimEl = el("div", "editscrim");
+    sheetEl = el("div", "editsheet");
+    sheetEl.setAttribute("role", "dialog");
+    sheetEl.setAttribute("aria-modal", "true");
+    sheetEl.setAttribute("aria-labelledby", "editsheet-t");
+    document.body.append(scrimEl, sheetEl);
+    scrimEl.onclick = closeSheet;
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && sheetOpen()) closeSheet(); });
+  }
+  function sheetOpen() { return !!(sheetEl && sheetEl.classList.contains("on")); }
+
+  function openSheet(kind, id, isNew) {
+    ensureSheet();
+    sheetFor = { kind: kind, id: id };
+    paintSheet();
+    sheetEl.scrollTop = 0;
+    sheetEl.classList.add("on"); scrimEl.classList.add("on");
+    document.body.classList.add("sheet-on");
+    var first = sheetEl.querySelector(isNew ? "input[type=text]" : "button, input, select");
+    if (first) { first.focus({ preventScroll: true }); if (isNew && first.select) first.select(); }
+  }
+  function closeSheet() {
+    if (!sheetEl) return;
+    sheetEl.classList.remove("on"); scrimEl.classList.remove("on");
+    document.body.classList.remove("sheet-on");
+    var was = sheetFor; sheetFor = null;
+    // Put focus back on the row you came from, found fresh since the grid redrew.
+    var back = was && document.querySelector(was.kind === "week"
+      ? '[data-week="' + was.id + '"]' : '[data-edit="' + was.kind + ":" + was.id + '"]');
+    if (back) back.focus({ preventScroll: true });
+  }
+
+  function findItem() {
+    var st = compactCtx.state;
+    if (!st || !sheetFor) return null;
+    var list = sheetFor.kind === "inc" ? st.incomes : st.bills;
+    return list.filter(function (x) { return x.id === sheetFor.id; })[0] || null;
+  }
+
+  // After any edit: save, redraw the page underneath, and refresh the card's
+  // own numbers without replacing the field being typed in. A change that
+  // alters which fields the card shows (how often, in/out) repaints it.
+  function sheetCommit(repaint) {
+    saveState(compactCtx.state);
+    compactCtx.rerender();
+    if (repaint) paintSheet(); else refreshSheet();
+  }
+
+  function labelled(text, control, cls) {
+    var w = el("div", "sfield" + (cls ? " " + cls : ""));
+    if (!control.id) control.id = "sf-" + Math.random().toString(36).slice(2, 9);
+    var l = el("label", null, text);
+    l.htmlFor = control.id;
+    w.append(l, control);
+    return w;
+  }
+
+  function paintSheet() {
+    if (!sheetFor) return;
+    var st = compactCtx.state, model = compactCtx.model;
+    sheetEl.innerHTML = "";
+    sheetEl.append(el("div", "grabber"));
+
+    var top = el("div", "stop");
+    var h = el("h4", null, "");
+    h.id = "editsheet-t";
+    var done = el("button", "primary", "Done");
+    done.type = "button";
+    done.onclick = closeSheet;
+
+    // ---- a paycheck's weekday --------------------------------------------
+    if (sheetFor.kind === "week") {
+      var pc = model.paychecks.filter(function (p) { return p.key === sheetFor.id; })[0];
+      if (!pc) { closeSheet(); return; }
+      h.textContent = "Paycheck " + (pc.index + 1) + " · " + E.fmtDate(pc.date);
+      top.append(h, done);
+      sheetEl.append(top);
+      var sel = el("select");
+      sel.id = "sheet-weekday";
+      WEEKDAYS.forEach(function (name, dow) {
+        var o = el("option", null, name); o.value = dow;
+        if (pc.date.getUTCDay() === dow) o.selected = true;
+        sel.append(o);
+      });
+      var base = E.parseISO(pc.key);
+      sel.onchange = function () {
+        st.meta.weekDays = st.meta.weekDays || {};
+        if (+sel.value === base.getUTCDay()) delete st.meta.weekDays[pc.key];
+        else st.meta.weekDays[pc.key] = +sel.value;
+        sheetCommit(true);
+      };
+      sheetEl.append(labelled("Day this paycheck lands", sel, "full"));
+      sheetEl.append(el("p", "snote", "Only this week moves. Everything typed into it and every bill ticked off in it stays with it. Bill due dates don't move."));
+      if (pc.moved) {
+        var back = el("button", null, "Back to " + WEEKDAYS[base.getUTCDay()]);
+        back.type = "button";
+        back.onclick = function () { delete st.meta.weekDays[pc.key]; sheetCommit(true); };
+        var f0 = el("div", "sfoot");
+        f0.append(back);
+        sheetEl.append(f0);
+      }
+      return;
+    }
+
+    var item = findItem();
+    if (!item) { closeSheet(); return; }
+    var isInc = sheetFor.kind === "inc";
+    var on = item.active !== false;
+
+    if (!isInc) { var sw = el("span", "swatch"); sw.style.background = catColor(item.category); top.append(sw); }
+    h.textContent = item.name || "Untitled";
+    top.append(h, done);
+    sheetEl.append(top);
+
+    // ---- the fields that used to be columns --------------------------------
+    var grid = el("div", "sfields");
+    var nm = el("input");
+    nm.type = "text"; nm.value = item.name; nm.autocomplete = "off";
+    nm.oninput = function () { item.name = nm.value; sheetCommit(); };
+    grid.append(labelled(isInc ? "Source" : "Bill", nm, "full"));
+
+    if (isInc) {
+      grid.append(labelled("Amount", moneyField(null, item.amount, function (v) {
+        item.amount = v === null ? 0 : v; sheetCommit();
+      })));
+      var icad = el("select");
+      INCOME_CADENCES.forEach(function (c) {
+        var o = el("option", null, c[1]); o.value = c[0];
+        if ((item.cadence || "weekly") === c[0]) o.selected = true;
+        icad.append(o);
+      });
+      icad.onchange = function () { item.cadence = icad.value; sheetCommit(true); };
+      grid.append(labelled("How often", icad));
+    } else {
+      var cat = el("select");
+      E.CATEGORIES.forEach(function (c) {
+        var o = el("option", null, c); o.value = c;
+        if (item.category === c) o.selected = true;
+        cat.append(o);
+      });
+      cat.onchange = function () { item.category = cat.value; sheetCommit(true); };
+      grid.append(labelled("Category", cat));
+      grid.append(labelled("Total needed", moneyField(null, item.amount, function (v) {
+        item.amount = v === null ? 0 : v; sheetCommit();
+      })));
+      var cad = el("select");
+      CADENCES.forEach(function (c) {
+        var o = el("option", null, c[1]); o.value = c[0];
+        if (item.cadence === c[0]) o.selected = true;
+        cad.append(o);
+      });
+      cad.onchange = function () { item.cadence = cad.value; sheetCommit(true); };
+      grid.append(labelled("How often", cad));
+      grid.append(labelled("Due", dueField(item, function () { sheetCommit(true); })));
+    }
+    sheetEl.append(grid);
+
+    // ---- the weeks -------------------------------------------------------
+    if (on) {
+      var wh = el("div", "swkhead");
+      wh.append(el("b", null, isInc ? "Each paycheck" : "Taken out each week"));
+      wh.append(el("span", "swkneed", isInc ? "blank = the usual amount" : ""));
+      sheetEl.append(wh);
+
+      model.paychecks.forEach(function (p, i) {
+        var row = el("div", "swk");
+        var lab = el("span", "wl", E.fmtDate(p.date));
+        lab.append(el("small", null, "Paycheck " + (i + 1) + " of " + model.paychecks.length));
+        var input = moneyField(null, null, function (v) {
+          item.plan = item.plan || {};
+          if (v === null) delete item.plan[p.key];   // emptied: back to the suggestion
+          else item.plan[p.key] = v;
+          if (!Object.keys(item.plan).length) delete item.plan;
+          sheetCommit();
+        });
+        input.setAttribute("data-wk", i);
+        input.setAttribute("aria-label", E.fmtDate(p.date));
+        row.append(lab, input);
+        sheetEl.append(row);
+      });
+
+      var tot = el("div", "stot");
+      tot.append(el("span", "stotv"));
+      if (!isInc) tot.append(el("span", "stotflag"));
+      sheetEl.append(tot);
+    } else {
+      sheetEl.append(el("p", "snote", "Not in the budget right now, so it's out of every total. Tick In the budget to put it back."));
+    }
+
+    // ---- in / out, back to suggested, delete ---------------------------------
+    var foot = el("div", "sfoot");
+    var tg = el("label", "stoggle");
+    var cb = el("input");
+    cb.type = "checkbox"; cb.checked = on;
+    cb.onchange = function () { item.active = cb.checked; sheetCommit(true); };
+    tg.append(cb, document.createTextNode(" In the budget"));
+    foot.append(tg);
+
+    if (on) {
+      var reset = el("button", "sreset", "↺ Suggested");
+      reset.type = "button";
+      reset.title = "Clear the amounts you typed and go back to the suggested split";
+      reset.onclick = function () { delete item.plan; sheetCommit(true); };
+      foot.append(reset);
+    }
+
+    var del = el("button", "sdelete", "Delete");
+    del.type = "button";
+    del.onclick = function () {
+      if (!del.classList.contains("armed")) { del.classList.add("armed"); del.textContent = "Tap again to delete"; return; }
+      var list = isInc ? st.incomes : st.bills;
+      list.splice(list.indexOf(item), 1);
+      closeSheet();
+      saveState(st);
+      compactCtx.rerender();
+    };
+    foot.append(del);
+    sheetEl.append(foot);
+
+    refreshSheet();
+  }
+
+  // Just the numbers: suggested amounts in each week, what's typed, the row
+  // total and its flag. Leaves whatever field has focus alone.
+  function refreshSheet() {
+    if (!sheetFor || sheetFor.kind === "week" || !sheetEl) return;
+    var item = findItem();
+    if (!item) { closeSheet(); return; }
+    var isInc = sheetFor.kind === "inc";
+    var facts = isInc ? compactCtx.incomes : compactCtx.bills;
+    var c = (facts && facts.cells[item.id]) || { amounts: [], manual: [], auto: [] };
+    var active = document.activeElement;
+
+    var title = sheetEl.querySelector("#editsheet-t");
+    if (title) title.textContent = item.name || "Untitled";
+
+    sheetEl.querySelectorAll("input[data-wk]").forEach(function (inp) {
+      var i = +inp.getAttribute("data-wk");
+      inp.placeholder = cellMoney(c.auto[i] || 0);
+      inp.classList.toggle("typed", !!c.manual[i]);
+      inp.title = c.manual[i] ? "You typed this. Clear it to go back to the suggested amount."
+                              : "Suggested. Type over it to set your own.";
+      if (inp !== active) inp.value = c.manual[i] ? moneyText(c.amounts[i] || 0) : "";
+    });
+
+    var total = (c.amounts || []).reduce(function (s, v) { return s + v; }, 0);
+    var tv = sheetEl.querySelector(".stotv");
+    if (tv) tv.textContent = (isInc ? "Total " : "Set aside ") + E.money(total);
+    if (!isInc && compactCtx.bills) {
+      var fl = sheetEl.querySelector(".stotflag");
+      if (fl) {
+        var f = compactCtx.bills.flag(item);
+        fl.className = "stotflag " + f.cls; fl.textContent = f.text; fl.title = f.title;
+      }
+      var needEl = sheetEl.querySelector(".swkneed");
+      if (needEl) needEl.textContent = "needs " + E.money(compactCtx.bills.need(item).total) + " this month";
+    }
+    var reset = sheetEl.querySelector(".sreset");
+    if (reset) reset.disabled = !(item.plan && Object.keys(item.plan).length);
   }
 
   // ------------------------------------------------------ paycheck cards ---
@@ -2460,6 +2971,8 @@
   global.BudgetUI = {
     loadState: loadState, saveState: saveState, resetState: resetState,
     isEdited: isEdited, downloadDataFile: downloadDataFile, isTouchScreen: isTouchScreen,
+    isCompact: isCompact, renderIncomeCompact: renderIncomeCompact, renderBillCompact: renderBillCompact,
+    closeEditSheet: closeSheet,
     stampSource: stampSource, sourceLabel: sourceLabel,
     readBudgetFile: readBudgetFile, parseBudget: parseBudget, normalizeState: normalizeState,
     initTheme: initTheme, cssVar: cssVar, catColor: catColor, el: el,
